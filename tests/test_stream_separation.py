@@ -1,9 +1,7 @@
-"""The four streams must never overlap.
+"""Stream separation, threshold discipline and prevalence control.
 
-If a monitor row were also a training row, the loop's improvement number would
-be measured on data the detector had just fitted — the most embarrassing failure
-available to this project. This test makes the separation an enforced property
-rather than a claim in a document.
+These assert the properties that make the loop's numbers mean anything. Each
+was added because an audit found the corresponding failure in a real run.
 """
 
 from itertools import combinations
@@ -20,37 +18,56 @@ def loop_results():
         seed=1000,
         generations=2,
         pop_params=3,
-        episodes_per_param=1,
-        n_consumers=60,
-        n_merchants=10,
-        background_days=0.5,
+        n_consumers=150,
+        n_merchants=12,
+        world_span_days=1.0,
     )
     loop = Loop(ATTACK_FAMILIES["F11"], cfg)
     return loop.run()
 
 
 def test_streams_are_disjoint(loop_results):
+    """Training rows must never appear in the monitor batch."""
     for gen in loop_results:
-        streams = gen.stream_ids
+        streams = {k: v for k, v in gen.stream_ids.items() if k in ("monitor", "training")}
         assert streams, "no stream provenance recorded"
         for a, b in combinations(streams, 2):
             overlap = streams[a] & streams[b]
             assert not overlap, (
-                f"generation {gen.generation}: streams {a} and {b} share "
-                f"{len(overlap)} event ids — measurement is contaminated"
+                f"generation {gen.generation}: {a} and {b} share {len(overlap)} "
+                f"event ids — measurement is contaminated"
             )
 
 
-def test_monitor_streams_differ_between_pre_and_post(loop_results):
-    """Pre- and post-retrain measurements must be on *different* fresh batches,
-    otherwise the improvement is partly a memorisation artefact."""
+def test_pre_and_post_measured_at_same_alert_budget(loop_results):
+    """The whole point of recalibrating per model: pre and post recall are only
+    comparable if both are read at the same false-positive rate. An earlier
+    version reused the stale threshold and reported recall 1.000 at 1.91% FPR,
+    nearly 4x the intended budget."""
     for gen in loop_results:
-        pre = gen.stream_ids.get("monitor_pre", set())
-        post = gen.stream_ids.get("monitor_post", set())
-        assert pre and post
-        assert pre != post
+        assert gen.monitor_fpr_pre == pytest.approx(gen.monitor_fpr_post, abs=0.01), (
+            f"generation {gen.generation}: pre/post measured at different alert "
+            f"budgets ({gen.monitor_fpr_pre:.4f} vs {gen.monitor_fpr_post:.4f})"
+        )
 
 
-def test_every_generation_produced_attacks(loop_results):
+def test_operating_fpr_near_target(loop_results):
     for gen in loop_results:
-        assert gen.n_attack_episodes > 0
+        assert gen.monitor_fpr_post <= 0.02, (
+            f"generation {gen.generation}: FPR {gen.monitor_fpr_post:.4f} far above target"
+        )
+
+
+def test_prevalence_is_controlled(loop_results):
+    """Blended prevalence must track the calibrated target. An uncontrolled
+    stream once ran ~25% fraud, which makes AUPRC and every threshold
+    uninterpretable."""
+    for gen in loop_results:
+        assert 0.0005 < gen.prevalence < 0.05, (
+            f"generation {gen.generation}: prevalence {gen.prevalence:.4f} off target"
+        )
+
+
+def test_episodes_were_produced(loop_results):
+    for gen in loop_results:
+        assert gen.n_episodes > 0

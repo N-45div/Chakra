@@ -31,41 +31,56 @@ def _build(seed=2000, with_attack=True):
                 "micro_amount_inr": 2.0,    # micro
                 "decline_tolerance": 40,
                 "spread_seconds": 0.0,
+                "probes_per_device": 60,
+                "probes_per_endpoint": 60,  # no rotation: one endpoint, many cards
             }
         )
         log.extend(fam.emit(rng, pop, params, start=datetime(2026, 2, 1, 8), n_episodes=2))
     return build_matrix(log, Surface.NETWORK)
 
 
-def test_attack_raises_velocity_naturally():
+def test_attack_raises_device_velocity_naturally():
     features, y, _ = _build()
     fraud = y.values == 1
     legit = y.values == 0
     assert fraud.sum() > 0, "no fraud rows produced"
     assert (
-        features.loc[fraud, "velocity_10m"].mean()
-        > features.loc[legit, "velocity_10m"].mean()
-    ), "enumeration did not raise 10-minute velocity above genuine traffic"
+        features.loc[fraud, "velocity_device_10m"].mean()
+        > features.loc[legit, "velocity_device_10m"].mean()
+    ), "enumeration did not raise device velocity above genuine traffic"
 
 
-def test_attack_raises_decline_ratio_naturally():
+def test_attack_raises_merchant_decline_ratio_naturally():
     features, y, _ = _build()
     fraud = y.values == 1
     legit = y.values == 0
     assert (
-        features.loc[fraud, "decline_ratio_1h"].mean()
-        > features.loc[legit, "decline_ratio_1h"].mean()
-    ), "enumeration did not raise the decline ratio"
+        features.loc[fraud, "decline_ratio_merchant_1h"].mean()
+        > features.loc[legit, "decline_ratio_merchant_1h"].mean()
+    ), "enumeration did not raise the endpoint decline ratio"
 
 
-def test_attack_raises_distinct_instruments():
+def test_attack_raises_distinct_instruments_at_endpoint():
     features, y, _ = _build()
     fraud = y.values == 1
     legit = y.values == 0
     assert (
-        features.loc[fraud, "distinct_instruments_1h"].mean()
-        > features.loc[legit, "distinct_instruments_1h"].mean()
-    ), "one actor walking many cards did not show up as distinct-instrument count"
+        features.loc[fraud, "distinct_instruments_merchant_1h"].mean()
+        > features.loc[legit, "distinct_instruments_merchant_1h"].mean()
+    ), "many cards at one endpoint did not show up in the acquirer-side view"
+
+
+def test_features_never_key_on_internal_actor_id():
+    """A real network cannot group by 'this is fraudster #7'. No feature may
+    read actor_id — an earlier version did, which handed the detector a perfect
+    grouping key no payment network possesses."""
+    import inspect
+
+    from chakra.schema import features as featmod
+
+    src = inspect.getsource(featmod)
+    body = src.split("# Network-surface features", 1)[-1]
+    assert "actor_id" not in body, "a feature groups on the internal actor id"
 
 
 def test_micro_amount_flag_fires_on_probes():
