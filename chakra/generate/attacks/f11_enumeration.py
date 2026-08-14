@@ -48,9 +48,28 @@ class F11Enumeration(AttackFamily):
         return [
             ParamSpec("cards_per_burst", 5, 60, integer=True),
             ParamSpec("inter_txn_seconds", 0.5, 45.0),
-            ParamSpec("micro_amount_inr", 1.0, 40.0),
+            # Probe amount. The upper bound reaches into the genuine UPI/card
+            # amount range on purpose: capped at ₹40 the attacker could never
+            # make a probe look like a real purchase, so amount alone separated
+            # the classes and no amount of evolution could help. Larger probes
+            # cost the tester more per validation — the trade should be the
+            # attacker's to make, not one the bounds make for them.
+            ParamSpec("micro_amount_inr", 1.0, 900.0),
             ParamSpec("decline_tolerance", 3, 40, integer=True),
             ParamSpec("spread_seconds", 0.0, 600.0),
+            # device rotation: how many probes before switching device. A real
+            # tester can burn devices to break device-keyed velocity, but each
+            # rotation costs money — which is exactly the trade the loop should
+            # have to make rather than getting evasion for free.
+            ParamSpec("probes_per_device", 1, 60, integer=True),
+            # endpoint rotation: how many probes before moving to another
+            # merchant. Added after the first honest multi-seed run showed zero
+            # evasion across every seed: with all probes pinned to one endpoint,
+            # the acquirer-side distinct-instrument count was inescapable and the
+            # attacker had no move that could work. That is an under-specified
+            # adversary, not a strong detector. Real card testers spray across
+            # merchants, so the action space must include it.
+            ParamSpec("probes_per_endpoint", 1, 60, integer=True),
         ]
 
     def emit(self, rng, pop, params, start, n_episodes):
@@ -62,23 +81,32 @@ class F11Enumeration(AttackFamily):
 
     def _one_burst(self, rng: Rng, pop: Population, p: AttackParams, start: datetime):
         events: list[Event] = []
-        # the tester operates as a fresh actor on an attacker-controlled device
+        # The tester's internal handle. Deliberately NOT used as a detection key
+        # anywhere — features group on observable identities (device, endpoint,
+        # instrument). A real network has no "this is fraudster #7" column.
         actor_id = rng.uid("f11actor")
-        device = pop.add_device(
-            Device(
-                device_id=rng.uid("f11dev"),
-                first_seen_at=start,
-                os="android",
-                is_emulator=True,
-                sim_id=rng.uid("f11sim"),
-                imei_hash=rng.uid("f11imei"),
+
+        def new_device():
+            return pop.add_device(
+                Device(
+                    device_id=rng.uid("f11dev"),
+                    first_seen_at=start,
+                    os="android",
+                    is_emulator=True,
+                    sim_id=rng.uid("f11sim"),
+                    imei_hash=rng.uid("f11imei"),
+                )
             )
-        )
-        # a merchant endpoint that accepts card-only input (donation/subscription
-        # style). Reuse a population merchant so the target looks ordinary.
+
+        device = new_device()
+        # merchant endpoints that accept card-only input (donation/subscription
+        # style). Reuse population merchants so targets look ordinary.
         merchants = pop.merchants()
-        target = rng.choice(merchants) if merchants else None
-        target_id = target.party_id if target else rng.uid("endpoint")
+
+        def new_endpoint():
+            return rng.choice(merchants).party_id if merchants else rng.uid("endpoint")
+
+        target_id = new_endpoint()
 
         episode_id = rng.uid("f11ep")
         n_cards = int(p["cards_per_burst"])
@@ -87,9 +115,15 @@ class F11Enumeration(AttackFamily):
         amount = round(float(p["micro_amount_inr"]), 2)
         tolerance = int(p["decline_tolerance"])
 
+        probes_per_device = int(p["probes_per_device"])
+        probes_per_endpoint = int(p["probes_per_endpoint"])
         when = start
         declines = 0
-        for _ in range(n_cards):
+        for probe_ix in range(n_cards):
+            if probe_ix > 0 and probe_ix % probes_per_device == 0:
+                device = new_device()  # burn the device, break device velocity
+            if probe_ix > 0 and probe_ix % probes_per_endpoint == 0:
+                target_id = new_endpoint()  # spray across merchants
             # deliberately non-routable, self-labelling synthetic identifier
             pan = f"SYNTH-CARD-{rng.choice(_SYNTH_ISSUER_TAGS)}-{rng.integers(100000, 999999):06d}"
             # advance time: base gap plus optional spread jitter (evasion)
@@ -141,6 +175,7 @@ class F11Enumeration(AttackFamily):
                         "instrument_id": pan,
                         "counterparty_id": target_id,
                         "amount_inr": amount,
+                        "device_id": device.device_id,
                         "decline_reason": None if live else "do_not_honor",
                     },
                 )
