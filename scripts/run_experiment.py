@@ -35,17 +35,19 @@ def run_one(family_code: str, seed: int, generations: int, small: bool):
     )
     loop = Loop(ATTACK_FAMILIES[family_code], cfg)
 
-    # seal the audit set BEFORE the loop runs, from initial parameters
+    out = RUNS / f"{family_code}_seed{seed}"
+
+    # Seal the audit set AND persist it before the loop trains anything, so the
+    # sealed evaluation set demonstrably exists independently of the result.
     init_params = loop.proposer.initial(Rng(seed, tag="auditinit"), cfg.pop_params)
     audit = loop.build_locked_audit(init_params)
+    audit.save(out)
 
     results = loop.run()
 
     final_params = [results[-1].best_params] if results and results[-1].best_params else init_params
     bundle, threshold = loop.score_locked_audit(Rng(seed + 999, tag="auditscore"), final_params)
 
-    out = RUNS / f"{family_code}_seed{seed}"
-    audit.save(out)
     (out / "generations.json").write_text(
         json.dumps(
             [

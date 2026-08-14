@@ -45,18 +45,31 @@ class EvolutionaryProposer:
         scored: list[tuple[AttackParams, float]],
         pop_size: int,
     ) -> list[AttackParams]:
-        """Given (params, evasion_rate) pairs, breed the next generation.
+        """Given (params, utility) pairs, breed the next generation.
 
-        Higher evasion = higher fitness. Elite survivors are kept, the rest are
-        children of tournament-selected parents with mutation. If nothing evaded
-        (all fitness 0) we still mutate the least-caught to keep exploring.
+        Utility is net attacker value and may be negative. Elites survive, the
+        rest are children of tournament-selected parents with mutation.
+
+        When fitness has no variance the elites are mutated rather than carried
+        through untouched. Without that, a flat landscape freezes the search
+        completely: the stable sort keeps returning the same first candidate and
+        every generation is identical to generation 0. That is exactly what
+        happened in the F11 pilot, where unchanged parameters across six
+        generations were misread as evolution having found something.
         """
         if not scored:
             return [self.family.sample_params(rng) for _ in range(pop_size)]
 
         ranked = sorted(scored, key=lambda t: t[1], reverse=True)
         elite_n = max(1, pop_size // 5)
-        elites = [p for p, _ in ranked[:elite_n]]
+        fitnesses = [f for _, f in ranked]
+        flat = max(fitnesses) - min(fitnesses) < 1e-12
+
+        if flat:
+            # no gradient to exploit — keep exploring instead of standing still
+            elites = [self._mutate(rng, p) for p, _ in ranked[:elite_n]]
+        else:
+            elites = [p for p, _ in ranked[:elite_n]]
 
         next_gen: list[AttackParams] = list(elites)
         while len(next_gen) < pop_size:
@@ -68,8 +81,16 @@ class EvolutionaryProposer:
         return next_gen[:pop_size]
 
     def _tournament(self, rng: Rng, ranked: list[tuple[AttackParams, float]], k: int = 3) -> AttackParams:
-        best = None
-        best_fit = -1.0
+        """Pick the fittest of k random candidates.
+
+        best_fit starts at -inf, not -1.0. Utility is net of probe cost and is
+        routinely negative — a burst that validates nothing still spends money —
+        so a floor of -1.0 meant every candidate lost its tournament and this
+        returned None. Fitness semantics changed under an assumption that was
+        only ever true while fitness was a rate in [0, 1].
+        """
+        best = ranked[0][0]
+        best_fit = float("-inf")
         for _ in range(k):
             idx = rng.integers(0, len(ranked))
             params, fit = ranked[idx]

@@ -23,9 +23,17 @@ from pathlib import Path
 import pandas as pd
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class LockedAudit:
-    """A frozen evaluation set plus the fingerprint that proves it is frozen."""
+    """A frozen evaluation set plus the fingerprint that proves it is frozen.
+
+    Three properties the earlier version claimed but did not have:
+      - the digest covers every field that affects a reported number, not just
+        event_id;
+      - it is written to disk BEFORE the loop trains anything, so the sealed set
+        exists independently of the result;
+      - it can be scored exactly once, and refuses to overwrite an existing seal.
+    """
 
     features: pd.DataFrame
     labels: pd.Series
@@ -34,6 +42,8 @@ class LockedAudit:
     created_at: datetime
     seed: int
     family: str
+    rail: str = "card"
+    _scored: bool = False
 
     def verify(self) -> None:
         """Recompute the fingerprint and refuse to proceed if it moved."""
@@ -45,35 +55,71 @@ class LockedAudit:
                 "A result scored on a mutated audit set is not a result."
             )
 
-    def save(self, directory: Path) -> Path:
+    def claim_scoring(self) -> None:
+        """Consume the single permitted scoring. Scoring twice would let a
+        disappointing number be quietly re-rolled, which is the whole thing a
+        locked set exists to prevent."""
+        if self._scored:
+            raise RuntimeError(
+                "locked audit stream has already been scored once. "
+                "Build a new audit set from a new seed rather than re-scoring "
+                "this one."
+            )
+        self.verify()
+        self._scored = True
+
+    def save(self, directory: Path, allow_overwrite: bool = False) -> Path:
+        manifest_path = directory / "audit_manifest.json"
+        if manifest_path.exists() and not allow_overwrite:
+            existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if existing.get("digest") != self.digest:
+                raise RuntimeError(
+                    f"refusing to overwrite a different sealed audit at {directory} "
+                    f"(on disk {str(existing.get('digest'))[:12]}, "
+                    f"this one {self.digest[:12]})"
+                )
+            return manifest_path
         directory.mkdir(parents=True, exist_ok=True)
         self.features.to_parquet(directory / "audit_features.parquet")
         self.labels.to_frame().to_parquet(directory / "audit_labels.parquet")
         self.meta.to_parquet(directory / "audit_meta.parquet")
         manifest = {
             "digest": self.digest,
+            "digested_columns": list(_DIGESTED_META),
             "created_at": self.created_at.isoformat(),
             "seed": self.seed,
             "family": self.family,
+            "rail": self.rail,
             "n_rows": int(len(self.labels)),
             "n_fraud": int(self.labels.sum()),
             "prevalence": float(self.labels.mean()),
         }
-        (directory / "audit_manifest.json").write_text(
-            json.dumps(manifest, indent=2), encoding="utf-8"
-        )
-        return directory / "audit_manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        return manifest_path
+
+
+# Every meta column that can change a reported number. amount_inr drives
+# value-weighted recall; family drives per-family and worst-family recall; rail
+# scopes the population. An earlier digest covered only event_id, so both
+# amount_inr and family could be rewritten in place and verify() still passed —
+# the seal proved nothing about the figures computed from it.
+_DIGESTED_META = ("event_id", "amount_inr", "family", "rail")
 
 
 def _digest(features: pd.DataFrame, labels: pd.Series, meta: pd.DataFrame) -> str:
     h = hashlib.sha256()
     h.update(pd.util.hash_pandas_object(features, index=True).values.tobytes())
     h.update(pd.util.hash_pandas_object(labels, index=True).values.tobytes())
-    h.update(pd.util.hash_pandas_object(meta["event_id"], index=True).values.tobytes())
+    for col in _DIGESTED_META:
+        if col in meta.columns:
+            h.update(col.encode())
+            h.update(pd.util.hash_pandas_object(meta[col], index=True).values.tobytes())
     return h.hexdigest()
 
 
-def seal_audit(features, labels, meta, seed: int, family: str, created_at: datetime) -> LockedAudit:
+def seal_audit(
+    features, labels, meta, seed: int, family: str, created_at: datetime, rail: str = "card"
+) -> LockedAudit:
     """Seal an evaluation set. `created_at` is passed in rather than read from
     the clock so a whole run stays reproducible."""
     return LockedAudit(
@@ -84,4 +130,5 @@ def seal_audit(features, labels, meta, seed: int, family: str, created_at: datet
         created_at=created_at,
         seed=seed,
         family=family,
+        rail=rail,
     )

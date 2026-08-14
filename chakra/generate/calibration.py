@@ -58,6 +58,25 @@ CARD_OWNERSHIP_RATE = 0.80
 INSTRUMENT_CHURN_RATE = 0.25
 LATE_ARRIVAL_RATE = 0.15
 
+
+def rail_share_of_legit(rail: str) -> float:
+    """Expected share of genuine transactions landing on `rail`.
+
+    Needed because prevalence is controlled within the rail the detector is
+    scoped to, not across the blended stream. Sizing a world for 0.4% blended
+    prevalence and then evaluating card-only rows yields ~3.9% on that rail,
+    since card carries roughly an eighth of the traffic — an eightfold error in
+    the quantity every threshold and AUPRC is read against.
+
+    Card share is discounted by ownership: a consumer with no card can never
+    contribute a card transaction, so those consumers push their whole volume
+    onto UPI.
+    """
+    card = RAIL_MIX_IMPLEMENTED["card"] * CARD_OWNERSHIP_RATE
+    if rail == "card":
+        return card
+    return 1.0 - card
+
 # UPI transaction-type split. P2M has grown to roughly half of UPI volume.
 # ASSUMPTION, order-of-magnitude.
 UPI_TYPE_MIX = {

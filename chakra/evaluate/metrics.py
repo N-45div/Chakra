@@ -85,7 +85,20 @@ def evaluate(
     scores: np.ndarray,
     meta: pd.DataFrame,
     operating_fpr: float = 0.005,
+    threshold: float | None = None,
 ) -> MetricBundle:
+    """Compute the metric panel.
+
+    `threshold`, when given, is the operating cut FROZEN on separate calibration
+    data and is used for every threshold-dependent metric. Leaving it None makes
+    the function derive its own cut from the evaluation labels, which is
+    self-referential: it reads recall at whatever cut this very set implies,
+    rather than at the cut the deployed system would actually use.
+
+    An earlier version computed a calibration threshold, saved it in the run
+    artifact, and then ignored it here — so the recorded threshold bore no
+    relation to the recall recorded beside it.
+    """
     from sklearn.metrics import average_precision_score, roc_auc_score
 
     y = np.asarray(y).astype(int)
@@ -99,12 +112,18 @@ def evaluate(
     r01 = recall_at_fpr(y, scores, 0.001)
     r05 = recall_at_fpr(y, scores, 0.005)
 
-    thr = _threshold_at_fpr(y, scores, operating_fpr)
+    # frozen calibration cut when supplied; self-derived only as a fallback
+    thr = threshold if threshold is not None else _threshold_at_fpr(y, scores, operating_fpr)
     legit = y == 0
     false_alerts = int(((scores >= thr) & legit).sum())
     fapm = (false_alerts / max(1, legit.sum())) * 1_000_000
 
-    vwr = value_weighted_recall(y, scores, amounts, operating_fpr)
+    fraud = y == 1
+    if fraud.sum() and amounts[fraud].sum() > 0:
+        caught = fraud & (scores >= thr)
+        vwr = float(amounts[caught].sum() / amounts[fraud].sum())
+    else:
+        vwr = 0.0
 
     per_family: dict[str, float] = {}
     if "family" in meta.columns:

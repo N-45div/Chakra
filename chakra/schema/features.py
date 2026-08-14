@@ -179,13 +179,24 @@ class Ctx:
     window: timedelta | None
 
 
-def build_matrix(log, surface: Surface):
-    """Build (X, y, meta) for every decision event, using only information
-    visible to `surface` strictly before each decision.
+def build_matrix(log, surface: Surface, rail=None):
+    """Build (X, y, meta) for every decision event on `rail`, using only
+    information visible to `surface` strictly before each decision.
+
+    `rail` scopes which decisions become ROWS. History from other rails is
+    already excluded from every feature, so this controls the population being
+    modelled rather than the lookback.
+
+    Scoping matters more than it looks. An F11 audit set built without it held
+    23,628 legitimate UPI rows, 2,873 legitimate card rows and 111 card-fraud
+    rows — so 89% of the negatives came from a rail carrying none of the
+    positives. A single detector across that mixture can hide card-specific
+    false positives entirely inside an aggregate FPR, and part of what it
+    appears to separate is card-versus-UPI behaviour rather than fraud. Real
+    deployments score a rail; the evaluation should too.
 
     meta carries labels, family, amount and ids for slicing. None of it is a
-    model input — value-weighted and per-family metrics need it, and it must
-    never leak into X.
+    model input.
     """
     import pandas as pd
 
@@ -197,6 +208,8 @@ def build_matrix(log, surface: Surface):
 
     for dec in log.sorted_by_time():
         if dec.event_type not in DECISION_EVENTS:
+            continue
+        if rail is not None and dec.rail is not rail:
             continue
         # The decision is made when the transaction is initiated. Every index
         # lookup enforces available_at < as_of, so the decision event itself and
