@@ -23,6 +23,41 @@ RAIL_MIX = {
     "agentic": 0.02,
 }
 
+# The rails the background generator can actually emit today. AePS and agentic
+# traffic arrive with families F12 and F10; until then, sampling RAIL_MIX
+# directly would silently fold their share into UPI and the emitted mix would
+# not match the documented one. Renormalising over implemented rails keeps the
+# constant and the behaviour honest, and a test asserts the emitted mix matches
+# this — not the aspirational one.
+IMPLEMENTED_RAILS = ("upi", "card")
+RAIL_MIX_IMPLEMENTED = {
+    r: RAIL_MIX[r] / sum(RAIL_MIX[x] for x in IMPLEMENTED_RAILS) for r in IMPLEMENTED_RAILS
+}
+
+# Share of consumers holding a card. Set above the card rail share so the mix is
+# not capped by instrument availability: a consumer with no card can never
+# contribute a card transaction. ASSUMPTION.
+CARD_OWNERSHIP_RATE = 0.80
+
+# Instrument churn in the genuine population.
+#
+# Without churn, every consumer uses one instrument for the whole window, so
+# after warm-up essentially no legitimate transaction presents an unseen
+# instrument — while every enumerated card is unseen by construction. That made
+# "never seen this instrument" a ~98%-precise fraud flag and rendered F11
+# trivially detectable for reasons that have nothing to do with fraud.
+#
+# Real card populations churn constantly: new customers arrive, cards are
+# reissued after expiry or compromise, people add a second card, and guest
+# checkouts present instruments no merchant has seen. A detector that treated
+# instrument novelty as near-certain fraud would decline every new customer.
+#
+# ASSUMPTION: share of consumers who acquire an additional instrument partway
+# through the window, and share who begin transacting only partway through
+# (i.e. arrive as new customers).
+INSTRUMENT_CHURN_RATE = 0.25
+LATE_ARRIVAL_RATE = 0.15
+
 # UPI transaction-type split. P2M has grown to roughly half of UPI volume.
 # ASSUMPTION, order-of-magnitude.
 UPI_TYPE_MIX = {

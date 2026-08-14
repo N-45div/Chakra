@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from chakra.generate import calibration as C
+from chakra.generate import calibration as C  # noqa: N812
 from chakra.generate.rng import Rng
 from chakra.schema.entities import (
     AgentIdentity,
@@ -49,7 +50,10 @@ def build_population(
                 home_state=rng.weighted_key(C.STATES),
             )
         )
-        # one device, one VPA, sometimes a card
+        # one device, one VPA, and a card for most consumers. Card ownership is
+        # set high enough that the emitted rail mix can actually reach the
+        # calibrated card share — a consumer with no card can never contribute
+        # a card transaction, so low ownership silently caps the mix.
         pop.add_device(
             Device(
                 device_id=rng.uid("dev"),
@@ -58,6 +62,7 @@ def build_population(
                 is_emulator=False,
                 sim_id=rng.uid("sim"),
                 imei_hash=rng.uid("imei"),
+                owner_party_id=p.party_id,
             )
         )
         pop.add_instrument(
@@ -69,7 +74,7 @@ def build_population(
                 psp=rng.choice(_PSPS),
             )
         )
-        if rng.uniform(0, 1) < 0.55:
+        if rng.uniform(0, 1) < C.CARD_OWNERSHIP_RATE:
             pop.add_instrument(
                 Instrument(
                     instrument_id=rng.uid("card"),

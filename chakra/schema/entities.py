@@ -54,6 +54,10 @@ class Device:
     is_emulator: bool = False
     sim_id: str | None = None
     imei_hash: str | None = None
+    # The party this device belongs to. Needed so the background can stamp an
+    # observable device id onto its events: the network groups by things it can
+    # actually see (device, merchant, instrument), never by an internal actor id.
+    owner_party_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -106,3 +110,9 @@ class Population:
 
     def instruments_of(self, party_id: str) -> list[Instrument]:
         return [i for i in self.instruments.values() if i.owner_party_id == party_id]
+
+    def device_of(self, party_id: str) -> Device | None:
+        for d in self.devices.values():
+            if d.owner_party_id == party_id:
+                return d
+        return None
