@@ -156,7 +156,7 @@ class Loop:
         n_fraud = sum(
             1
             for e in attack_events
-            if e.event_type is EventType.TXN_INITIATED and e.rail is self.config.rail
+            if e.event_type is EventType.TXN_AUTH_REQUESTED and e.rail is self.config.rail
         )
 
         # Prevalence is targeted WITHIN the scoped rail, so the world must be
@@ -239,7 +239,7 @@ class Loop:
             sum(
                 1
                 for e in probe
-                if e.event_type is EventType.TXN_INITIATED and e.rail is self.config.rail
+                if e.event_type is EventType.TXN_AUTH_REQUESTED and e.rail is self.config.rail
             )
             // max(1, len(params_list)),
         )
@@ -320,7 +320,7 @@ class Loop:
                     validated_total += 1
                     if probe_pos <= first_alert:
                         validated_before += 1
-                elif e.event_type is EventType.TXN_INITIATED:
+                elif e.event_type is EventType.TXN_AUTH_REQUESTED:
                     probe_pos += 1
 
             out.append(

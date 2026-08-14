@@ -154,10 +154,30 @@ def _approved(rng: Rng) -> bool:
     return rng.uniform(0, 1) < C.BASELINE_APPROVAL_RATE
 
 
-def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device):
-    merch = rng.choice(merchants)
+def _upi_mode(rng: Rng) -> tuple[str, bool]:
+    """Pick a genuine UPI initiation mode.
+
+    Note what is absent: person-to-person COLLECT. NPCI discontinued P2P collect
+    from 1 October 2025 precisely because it was the vector for the classic
+    "approve to receive money" scam. Genuine collect therefore exists only in the
+    merchant direction, which is also what makes merchant-collect impersonation
+    the surviving deception rather than plain P2P collect.
+    """
+    mode = rng.weighted_key(
+        {
+            "p2m_push": 0.62,   # scan a QR / intent link and pay a merchant
+            "p2p_push": 0.28,   # send money to a person
+            "p2m_collect": 0.10,  # merchant raises a request, payer approves
+        }
+    )
+    return mode, mode.endswith("collect")
+
+
+def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device, payee_party=None):
+    merch = payee_party or rng.choice(merchants)
     amount = rng.amount_from_bands(C.UPI_AMOUNT_BANDS)
     device_id = device.device_id if device else None
+    mode, is_collect = _upi_mode(rng)
 
     init = Event(
         event_id=rng.uid("ev"),
@@ -165,7 +185,7 @@ def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device):
         rail=Rail.UPI,
         ts=when,
         actor_id=consumer.party_id,
-        surface=Surface.NETWORK,
+        surface=Surface.PSP_APP,
         available_at=when,
         label=Label.LEGIT,
         payload={
@@ -173,15 +193,16 @@ def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device):
             "counterparty_id": merch.party_id,
             "amount_inr": amount,
             "mcc": rng.weighted_key(C.MERCHANT_CATEGORIES),
-            "initiation_mode": "p2m",
+            "initiation_mode": mode,
+            "is_collect": is_collect,
             "geo_state": consumer.home_state,
             "device_id": device_id,
         },
     )
     log.append(init)
 
-    # Authentication happens AFTER initiation and BEFORE the outcome.
-    # psp_app surface: the network cannot see the PIN entry itself.
+    # PIN entry: after initiation, before the network is asked anything.
+    # psp_app surface — the network never sees the PIN event itself.
     pin_ts = when + timedelta(seconds=rng.uniform(2, 15))
     log.append(
         Event(
@@ -202,7 +223,13 @@ def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device):
         )
     )
 
-    _emit_outcome(log, rng, init, consumer, Rail.UPI, after=pin_ts, device_id=device_id)
+    # Only now does the network see an authorisation request. This is the row
+    # the detector scores.
+    auth_ts = pin_ts + timedelta(seconds=rng.uniform(0.1, 1.5))
+    auth = _emit_auth_request(
+        log, rng, init, consumer, Rail.UPI, auth_ts, device_id, extra={"is_collect": is_collect}
+    )
+    _emit_outcome(log, rng, auth, consumer, Rail.UPI, after=auth_ts, device_id=device_id)
 
 
 def _emit_card_txn(log, rng, consumer, card, merchants, when, device):
@@ -216,7 +243,9 @@ def _emit_card_txn(log, rng, consumer, card, merchants, when, device):
         rail=Rail.CARD,
         ts=when,
         actor_id=consumer.party_id,
-        surface=Surface.NETWORK,
+        # Initiation happens at the merchant/app, before anything reaches the
+        # network. The network's own view begins at the authorisation request.
+        surface=Surface.PSP_APP,
         available_at=when,
         label=Label.LEGIT,
         payload={
@@ -253,11 +282,48 @@ def _emit_card_txn(log, rng, consumer, card, merchants, when, device):
             },
         )
     )
-    _emit_outcome(log, rng, init, consumer, Rail.CARD, after=otp_ts, device_id=device_id)
+    auth_ts = otp_ts + timedelta(seconds=rng.uniform(0.1, 1.5))
+    auth = _emit_auth_request(log, rng, init, consumer, Rail.CARD, auth_ts, device_id)
+    _emit_outcome(log, rng, auth, consumer, Rail.CARD, after=auth_ts, device_id=device_id)
+
+
+def _emit_auth_request(log, rng, init, consumer, rail, when, device_id, extra=None):
+    """The network-visible authorisation request — the scored decision point."""
+    payload = {
+        "instrument_id": init.payload["instrument_id"],
+        "counterparty_id": init.payload["counterparty_id"],
+        "amount_inr": init.payload["amount_inr"],
+        "mcc": init.payload.get("mcc"),
+        "initiation_mode": init.payload.get("initiation_mode"),
+        "geo_state": init.payload.get("geo_state"),
+        "device_id": device_id,
+        "linked_txn_id": init.event_id,
+    }
+    for k in ("bin", "cvv_result", "avs_result"):
+        if k in init.payload:
+            payload[k] = init.payload[k]
+    if extra:
+        payload.update(extra)
+
+    auth = Event(
+        event_id=rng.uid("ev"),
+        event_type=EventType.TXN_AUTH_REQUESTED,
+        rail=rail,
+        ts=when,
+        actor_id=consumer.party_id,
+        surface=Surface.NETWORK,
+        available_at=when,
+        episode_id=init.episode_id,
+        label=init.label,
+        family=init.family,
+        payload=payload,
+    )
+    log.append(auth)
+    return auth
 
 
 def _emit_outcome(log, rng, init, consumer, rail, after, device_id):
-    """Authorisation outcome, strictly after authentication."""
+    """Authorisation outcome, strictly after the authorisation request."""
     approved = _approved(rng)
     et = EventType.TXN_AUTHORISED if approved else EventType.TXN_DECLINED
     outcome_ts = after + timedelta(seconds=rng.uniform(0.2, 2.0))

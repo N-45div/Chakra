@@ -107,14 +107,15 @@ class VisibilityIndex:
         # (rail, field, value, kind) -> (sorted ts list, events list)
         self._groups: dict[tuple, tuple[list, list]] = {}
         for e in events:
-            kind = (
-                "init"
-                if e.event_type is EventType.TXN_INITIATED
-                else "outcome"
-                if e.event_type in (EventType.TXN_AUTHORISED, EventType.TXN_DECLINED)
-                else None
-            )
-            if kind is None:
+            # "attempt" is the authorisation REQUEST, not the initiation: the
+            # request is what a network actually observes. Initiation happens in
+            # the payer's app before anything reaches the network, so counting
+            # initiations would credit the model with visibility it lacks.
+            if e.event_type is EventType.TXN_AUTH_REQUESTED:
+                kind = "attempt"
+            elif e.event_type in (EventType.TXN_AUTHORISED, EventType.TXN_DECLINED):
+                kind = "outcome"
+            else:
                 continue
             for field_name in _KEY_FIELDS:
                 val = e.payload.get(field_name)
@@ -159,10 +160,10 @@ def _txn_inits(events: list[Event]) -> list[Event]:
 
 
 def _by_key(ctx, dec: Event, key: str) -> list[Event]:
-    """Prior transaction initiations sharing an observable key with `dec`, on the
+    """Prior authorisation attempts sharing an observable key with `dec`, on the
     same rail. Returns [] when the key is absent, so a missing device id degrades
     to 'no evidence' rather than a spurious match on None."""
-    return ctx.index.prior(dec, key, "init", ctx.as_of, ctx.window)
+    return ctx.index.prior(dec, key, "attempt", ctx.as_of, ctx.window)
 
 
 def _outcomes_by_key(ctx, dec: Event, key: str) -> list[Event]:

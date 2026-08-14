@@ -135,7 +135,8 @@ class F11Enumeration(AttackFamily):
                 rail=Rail.CARD,
                 ts=when,
                 actor_id=actor_id,
-                surface=Surface.NETWORK,
+                # pre-network: the tester's own script firing at a checkout
+                surface=Surface.PSP_APP,
                 available_at=when,
                 episode_id=episode_id,
                 label=Label.FRAUD,
@@ -155,10 +156,30 @@ class F11Enumeration(AttackFamily):
             )
             events.append(init)
 
+            # The network's view starts here: the authorisation request. This is
+            # the row the detector scores.
+            auth_ts = when + timedelta(seconds=rng.uniform(0.05, 0.4))
+            auth_payload = dict(init.payload)
+            auth_payload["linked_txn_id"] = init.event_id
+            auth = Event(
+                event_id=rng.uid("ev"),
+                event_type=EventType.TXN_AUTH_REQUESTED,
+                rail=Rail.CARD,
+                ts=auth_ts,
+                actor_id=actor_id,
+                surface=Surface.NETWORK,
+                available_at=auth_ts,
+                episode_id=episode_id,
+                label=Label.FRAUD,
+                family=Family.F11,
+                payload=auth_payload,
+            )
+            events.append(auth)
+
             # a card is "live" on the ~12% where the guessed CVV matched
             live = init.payload["cvv_result"] == "match"
             outcome_et = EventType.TXN_AUTHORISED if live else EventType.TXN_DECLINED
-            outcome_ts = when + timedelta(seconds=rng.uniform(0.1, 1.0))
+            outcome_ts = auth_ts + timedelta(seconds=rng.uniform(0.1, 1.0))
             events.append(
                 Event(
                     event_id=rng.uid("ev"),

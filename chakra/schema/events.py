@@ -56,6 +56,14 @@ class Family(str, Enum):
 class EventType(str, Enum):
     # transaction
     TXN_INITIATED = "txn_initiated"
+    # The moment the network is asked to approve. Distinct from initiation
+    # because on UPI they are not the same instant: the payer opens a request,
+    # authenticates with their PIN, and only then does an authorisation request
+    # reach the network. Scoring at initiation would place the network's
+    # decision before the customer had authenticated — impossible in the real
+    # flow, and fatal to F5 in particular, whose deception is that the victim's
+    # PIN authorises a debit they believe is a credit.
+    TXN_AUTH_REQUESTED = "txn_auth_requested"
     TXN_AUTHORISED = "txn_authorised"
     TXN_DECLINED = "txn_declined"
     TXN_SETTLED = "txn_settled"
@@ -95,13 +103,18 @@ class EventType(str, Enum):
 
 # The single point at which the detector is asked to decide.
 #
-# Deliberately TXN_INITIATED only. Scoring at TXN_AUTHORISED would mean the row
-# exists only because the outcome is already known — the decision would be made
-# after the answer, which is the outcome leak in its purest form. It would also
-# double-count every transaction. Prior *historical* outcomes remain visible and
-# are legitimate signal (decline_ratio_1h depends on them); it is the current
-# transaction's own outcome that must never be in scope.
-DECISION_EVENTS: frozenset[EventType] = frozenset({EventType.TXN_INITIATED})
+# TXN_AUTH_REQUESTED, not TXN_INITIATED: the network decides when an
+# authorisation request reaches it, which on UPI is only after the payer has
+# entered their PIN. Anchoring to initiation would have the network deciding
+# before the customer authenticated, and would make the PIN — the whole subject
+# of the F5 deception — unavailable at decision time for reasons of ordering
+# rather than of surface.
+#
+# Not TXN_AUTHORISED either: that row would exist only because the outcome is
+# already known, which is the outcome leak in its purest form, and it would
+# double-count every transaction. Prior *historical* outcomes stay visible and
+# are legitimate signal; it is this transaction's own outcome that must not be.
+DECISION_EVENTS: frozenset[EventType] = frozenset({EventType.TXN_AUTH_REQUESTED})
 
 
 @dataclass(slots=True)
