@@ -34,8 +34,17 @@ def generate_background(
     pop: Population,
     start: datetime,
     days: float,
+    only_rail: str | None = None,
 ) -> EventLog:
-    """Emit genuine transactions for the whole population over `days`."""
+    """Emit genuine transactions for the whole population over `days`.
+
+    `only_rail` restricts emission to a single rail. Features are already
+    rail-scoped, so events on other rails can never enter a scoped matrix —
+    generating them is pure waste, and the waste is large: hitting card-rail
+    prevalence means ~8x more traffic, of which ~88% would be UPI rows nothing
+    ever reads. Restricting emission is a speedup, not a semantic change, and
+    the per-consumer rate is scaled so the retained rail keeps its own volume.
+    """
     log = EventLog()
     consumers = pop.consumers()
     merchants = pop.merchants()
@@ -51,7 +60,10 @@ def generate_background(
         if not vpas:
             continue
 
-        n_txn = rng.poisson(C.CONSUMER_DAILY_TXN_MEAN * days)
+        rate = C.CONSUMER_DAILY_TXN_MEAN
+        if only_rail is not None:
+            rate *= C.rail_share_of_legit(only_rail)
+        n_txn = rng.poisson(rate * days)
         favourites = _favourite_merchants(rng, merchants, k=rng.integers(3, 9))
 
         # Genuine instrument churn. Some consumers arrive partway through the
@@ -79,7 +91,9 @@ def generate_background(
             when = start + timedelta(seconds=rng.uniform(0, days * 86400))
             if when >= horizon or when < active_from:
                 continue
-            rail = _choose_rail(rng, has_card=bool(cards))
+            rail = only_rail or _choose_rail(rng, has_card=bool(cards))
+            if rail == "card" and not cards:
+                continue  # cannot transact on a rail this consumer has no instrument for
             if rail == "card":
                 card = second_card if (second_card and when >= second_card_from) else cards[0]
                 _emit_card_txn(log, rng, cons, card, favourites, when, device)

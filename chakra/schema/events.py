@@ -174,6 +174,14 @@ class EventLog:
     def extend(self, events: Iterable[Event]) -> None:
         self._events.extend(events)
 
+    def copy(self) -> "EventLog":
+        """A shallow copy sharing the same immutable Event objects.
+
+        Used to inject different candidates' attacks into one shared background
+        world without each candidate mutating the world the next one will see.
+        """
+        return EventLog(self._events)
+
     def __len__(self) -> int:
         return len(self._events)
 

@@ -179,7 +179,7 @@ class Ctx:
     window: timedelta | None
 
 
-def build_matrix(log, surface: Surface, rail=None):
+def build_matrix(log, surface: Surface, rail=None, only_episodes: set | None = None):
     """Build (X, y, meta) for every decision event on `rail`, using only
     information visible to `surface` strictly before each decision.
 
@@ -210,6 +210,13 @@ def build_matrix(log, surface: Surface, rail=None):
         if dec.event_type not in DECISION_EVENTS:
             continue
         if rail is not None and dec.rail is not rail:
+            continue
+        # `only_episodes` restricts which decisions become ROWS; the index still
+        # covers the whole log, so every feature sees the same history it would
+        # otherwise. Used when scoring attacker fitness, where only the attack's
+        # own rows are needed and building tens of thousands of genuine rows per
+        # candidate per replicate dominates the runtime.
+        if only_episodes is not None and dec.episode_id not in only_episodes:
             continue
         # The decision is made when the transaction is initiated. Every index
         # lookup enforces available_at < as_of, so the decision event itself and

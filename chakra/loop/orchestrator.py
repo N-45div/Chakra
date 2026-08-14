@@ -169,7 +169,13 @@ class Loop:
             0.5, need_legit_on_rail / (self.config.n_consumers * per_consumer_day_on_rail)
         )
 
-        log = generate_background(rng, pop, start=self._world_start, days=days)
+        log = generate_background(
+            rng,
+            pop,
+            start=self._world_start,
+            days=days,
+            only_rail=self.config.rail.value,
+        )
         log.extend(attack_events)
         return log
 
@@ -201,8 +207,53 @@ class Loop:
         fpr = float((scores[legit] >= threshold).mean()) if legit.sum() else 0.0
         return recall, fpr
 
+    def _shared_world(self, rng: Rng, params_list: list[AttackParams]):
+        """A genuine background world, built once and reused across candidates.
+
+        Every candidate in a generation is evaluated against the SAME set of
+        worlds (common random numbers). Two reasons: comparing candidates that
+        each faced a different random world means much of the fitness difference
+        between them is world noise rather than skill; and rebuilding a full
+        world per candidate per replicate dominated runtime once prevalence was
+        targeted within a rail.
+
+        Sized from the same prevalence arithmetic as the loop's other streams,
+        using the current parameter population so the world is the right size
+        for the attacks that will be injected into it.
+        """
+        pop = build_population(
+            rng,
+            n_consumers=self.config.n_consumers,
+            n_merchants=self.config.n_merchants,
+            world_start=self._world_start,
+        )
+        probe = []
+        for params in params_list:
+            probe.extend(
+                self.family.emit(
+                    rng, pop, params, start=self._world_start, n_episodes=1
+                )
+            )
+        n_fraud = max(
+            1,
+            sum(
+                1
+                for e in probe
+                if e.event_type is EventType.TXN_INITIATED and e.rail is self.config.rail
+            )
+            // max(1, len(params_list)),
+        )
+        p = self.config.target_prevalence
+        need = int(round(n_fraud * (1.0 - p) / max(1e-9, p)))
+        share = max(1e-6, C.rail_share_of_legit(self.config.rail.value))
+        days = max(0.5, need / (self.config.n_consumers * max(0.01, C.CONSUMER_DAILY_TXN_MEAN * share)))
+        log = generate_background(
+            rng, pop, start=self._world_start, days=days, only_rail=self.config.rail.value
+        )
+        return pop, log
+
     def _episode_outcomes(
-        self, rng: Rng, params: AttackParams, threshold: float
+        self, rng: Rng, params: AttackParams, threshold: float, world=None
     ) -> list[EpisodeOutcome]:
         """Run one parameter vector and score it at the episode level, in order.
 
@@ -211,8 +262,28 @@ class Loop:
         endpoint. Everything validated before that moment is kept; everything
         after it is not.
         """
-        log = self._build_stream(rng, [params])
-        features, y, meta = self._matrix(log)
+        if world is None:
+            log = self._build_stream(rng, [params])
+            episode_ids = None
+        else:
+            pop, base = world
+            log = base.copy()
+            injected = self.family.emit(
+                rng,
+                pop,
+                params,
+                start=self._world_start
+                + timedelta(hours=rng.uniform(1, self.config.world_span_days * 20)),
+                n_episodes=1,
+            )
+            log.extend(injected)
+            episode_ids = {e.episode_id for e in injected if e.episode_id}
+
+        # Only the attack's own rows are scored. The index still spans the whole
+        # world, so each row sees exactly the history it would in a full build.
+        features, y, meta = build_matrix(
+            log, self.config.surface, rail=self.config.rail, only_episodes=episode_ids
+        )
         if y.sum() == 0:
             return []
         scores = self.detector.score(features)
@@ -357,6 +428,12 @@ class Loop:
             recall_pre, fpr_pre = self._score_frozen(self.detector, frozen, thr_pre)
 
             # feedback -> episode-level, yield-aware fitness
+            # common random numbers: every candidate faces the same worlds
+            worlds = [
+                self._shared_world(rng.spawn(f"world{gen}_{r}"), params_list)
+                for r in range(self.config.fitness_replicates)
+            ]
+
             scored: list[tuple[AttackParams, float]] = []
             fb_ids: set = set()
             all_outcomes: list[EpisodeOutcome] = []
@@ -365,9 +442,11 @@ class Loop:
                 # A single episode in one random world makes fitness so noisy
                 # that selection is mostly sampling error.
                 rep_outcomes: list[EpisodeOutcome] = []
-                for rep in range(self.config.fitness_replicates):
+                for rep, shared in enumerate(worlds):
                     fb_rng = rng.spawn(f"fb{gen}_{i}_{rep}")
-                    rep_outcomes.extend(self._episode_outcomes(fb_rng, params, thr_pre))
+                    rep_outcomes.extend(
+                        self._episode_outcomes(fb_rng, params, thr_pre, world=shared)
+                    )
                 all_outcomes.extend(rep_outcomes)
                 fb_ids |= {o.episode_id for o in rep_outcomes}
                 scored.append((params, self._fitness(rep_outcomes)))
