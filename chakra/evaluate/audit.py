@@ -55,18 +55,30 @@ class LockedAudit:
                 "A result scored on a mutated audit set is not a result."
             )
 
-    def claim_scoring(self) -> None:
-        """Consume the single permitted scoring. Scoring twice would let a
-        disappointing number be quietly re-rolled, which is the whole thing a
-        locked set exists to prevent."""
+    def claim_scoring(self, directory: Path | None = None) -> None:
+        """Consume the single permitted scoring.
+
+        The in-memory flag alone was process-local: a fresh interpreter reset it,
+        so "scored once" held only within a single run. When a directory is
+        given, a `scored.marker` file makes the claim durable, which is the only
+        version that stops a disappointing number being quietly re-rolled.
+        """
         if self._scored:
             raise RuntimeError(
-                "locked audit stream has already been scored once. "
-                "Build a new audit set from a new seed rather than re-scoring "
-                "this one."
+                "locked audit stream has already been scored once in this process."
+            )
+        marker = (directory / "scored.marker") if directory else None
+        if marker is not None and marker.exists():
+            raise RuntimeError(
+                f"locked audit stream at {directory} was already scored "
+                f"(marker written {marker.read_text(encoding='utf-8').strip()}). "
+                "Build a new audit set from a new seed rather than re-scoring."
             )
         self.verify()
         self._scored = True
+        if marker is not None:
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(f"digest={self.digest}", encoding="utf-8")
 
     def save(self, directory: Path, allow_overwrite: bool = False) -> Path:
         manifest_path = directory / "audit_manifest.json"
@@ -108,6 +120,11 @@ _DIGESTED_META = ("event_id", "amount_inr", "family", "rail")
 
 def _digest(features: pd.DataFrame, labels: pd.Series, meta: pd.DataFrame) -> str:
     h = hashlib.sha256()
+    # Column NAMES and dtypes, not just values. Renaming feature columns changes
+    # what the model is fed while leaving every value untouched, and the earlier
+    # digest passed verification straight through that.
+    h.update("|".join(map(str, features.columns)).encode())
+    h.update("|".join(str(d) for d in features.dtypes).encode())
     h.update(pd.util.hash_pandas_object(features, index=True).values.tobytes())
     h.update(pd.util.hash_pandas_object(labels, index=True).values.tobytes())
     for col in _DIGESTED_META:

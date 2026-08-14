@@ -58,6 +58,27 @@ CARD_OWNERSHIP_RATE = 0.80
 INSTRUMENT_CHURN_RATE = 0.25
 LATE_ARRIVAL_RATE = 0.15
 
+# Fraction of the simulated interval reserved as warm-up before any attack may
+# begin.
+#
+# Without it, attacks landed in the first day while genuine traffic ran on for
+# months, so only ~20 genuine card decisions existed before the first fraud and
+# 0% of fraud rows had instrument history against 99% of genuine ones. A model
+# can score that perfectly by learning "early, unfamiliar world" — a property of
+# the schedule, not of fraud. Attacks are now confined to the post-warm-up
+# interval and spread across it.
+WARMUP_FRACTION = 0.35
+
+# What evasion costs the attacker, in rupees.
+#
+# Rotation used to be free: an attacker could burn a device every probe and pay
+# nothing for it, which is not the trade a real card tester faces. Burner
+# handsets and freshly-stood-up merchant endpoints are acquired assets, and
+# charging for them is what turns "rotate constantly" from a dominant strategy
+# into a decision. ASSUMPTION — order-of-magnitude only.
+DEVICE_ACQUISITION_COST_INR = 400.0
+ENDPOINT_ACQUISITION_COST_INR = 250.0
+
 
 def rail_share_of_legit(rail: str) -> float:
     """Expected share of genuine transactions landing on `rail`.
@@ -72,10 +93,25 @@ def rail_share_of_legit(rail: str) -> float:
     contribute a card transaction, so those consumers push their whole volume
     onto UPI.
     """
-    card = RAIL_MIX_IMPLEMENTED["card"] * CARD_OWNERSHIP_RATE
+    # Pure rail mix. Who can actually transact on the rail is a separate factor,
+    # applied exactly once by rail_participation_rate() — folding it in here as
+    # well discounted card twice and left prevalence ~30% BELOW target, while
+    # omitting it entirely left prevalence ~30% ABOVE. Two distinct quantities
+    # that had been conflated in both directions.
     if rail == "card":
-        return card
-    return 1.0 - card
+        return RAIL_MIX_IMPLEMENTED["card"]
+    return RAIL_MIX_IMPLEMENTED["upi"]
+
+
+def rail_participation_rate(rail: str) -> float:
+    """Share of consumers who can transact on `rail` at all.
+
+    The generator skips a consumer with no card, so only ~80% of the population
+    ever contributes card volume. Sizing a world as if all of them did produced
+    ~20% fewer genuine rows than assumed, and prevalence correspondingly higher.
+    Everyone holds a VPA, so UPI participation is total.
+    """
+    return CARD_OWNERSHIP_RATE if rail == "card" else 1.0
 
 # UPI transaction-type split. P2M has grown to roughly half of UPI volume.
 # ASSUMPTION, order-of-magnitude.

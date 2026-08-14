@@ -18,7 +18,7 @@ from datetime import datetime
 
 from chakra.generate.rng import Rng
 from chakra.schema.entities import Population
-from chakra.schema.events import Event, Family
+from chakra.schema.events import Event, Family, Rail
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +49,11 @@ class AttackParams(dict):
 class AttackFamily(ABC):
     code: Family
     name: str
+    # The rail this family operates on, declared by the family itself rather
+    # than configured on the loop. Registering a UPI family and having it
+    # silently scored by a card-scoped detector would produce a plausible
+    # number and no error anywhere.
+    rail: Rail
 
     @property
     @abstractmethod

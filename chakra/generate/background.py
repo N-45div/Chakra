@@ -54,6 +54,13 @@ def generate_background(
     horizon = start + timedelta(days=days)
 
     for cons in consumers:
+        # A small circle of people this consumer actually pays. Genuine P2P is
+        # repeated payments to known contacts, which is exactly the baseline a
+        # brand-new payee has to stand out against.
+        peer_pool = [
+            p for p in _favourite_merchants(rng, consumers, k=rng.integers(2, 6))
+            if p.party_id != cons.party_id
+        ]
         vpas = [i for i in pop.instruments_of(cons.party_id) if i.kind is InstrumentKind.VPA]
         cards = [i for i in pop.instruments_of(cons.party_id) if i.kind is InstrumentKind.CARD]
         device = pop.device_of(cons.party_id)
@@ -94,12 +101,13 @@ def generate_background(
             rail = only_rail or _choose_rail(rng, has_card=bool(cards))
             if rail == "card" and not cards:
                 continue  # cannot transact on a rail this consumer has no instrument for
+            peers = peer_pool
             if rail == "card":
                 card = second_card if (second_card and when >= second_card_from) else cards[0]
                 _emit_card_txn(log, rng, cons, card, favourites, when, device)
             else:
                 vpa = second_vpa if (second_vpa and when >= second_vpa_from) else vpas[0]
-                _emit_upi_txn(log, rng, cons, vpa, favourites, when, device)
+                _emit_upi_txn(log, rng, cons, vpa, favourites, when, device, peers=peers)
 
     return log
 
@@ -173,11 +181,20 @@ def _upi_mode(rng: Rng) -> tuple[str, bool]:
     return mode, mode.endswith("collect")
 
 
-def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device, payee_party=None):
-    merch = payee_party or rng.choice(merchants)
+def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device, peers=None):
     amount = rng.amount_from_bands(C.UPI_AMOUNT_BANDS)
     device_id = device.device_id if device else None
     mode, is_collect = _upi_mode(rng)
+
+    # A person-to-person payment must actually pay a PERSON. Routing p2p_push to
+    # merchants made the mode a label with no behavioural content, and it would
+    # have made F5 incoherent: the family's signal is a payment to a brand-new
+    # payee, which only means anything if genuine P2P payees are people the payer
+    # already knows.
+    if mode == "p2p_push" and peers:
+        merch = rng.choice(peers)
+    else:
+        merch = rng.choice(merchants)
 
     init = Event(
         event_id=rng.uid("ev"),

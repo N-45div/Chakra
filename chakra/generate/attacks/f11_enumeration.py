@@ -41,6 +41,7 @@ _SYNTH_ISSUER_TAGS = ["SYNTHA", "SYNTHB", "SYNTHC", "SYNTHD", "SYNTHE", "SYNTHF"
 
 class F11Enumeration(AttackFamily):
     code = Family.F11
+    rail = Rail.CARD
     name = "Enumeration / card testing"
 
     @property

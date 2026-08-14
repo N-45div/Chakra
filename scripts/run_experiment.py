@@ -12,7 +12,10 @@ Writes per-run artifacts and a sealed, hash-verified audit score into runs/.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -22,6 +25,45 @@ from chakra.generate.rng import Rng
 from chakra.loop.orchestrator import Loop, LoopConfig
 
 RUNS = Path(__file__).resolve().parents[1] / "runs"
+
+
+def _code_version() -> str:
+    """Git commit plus a hash of the source that produces results.
+
+    Run directories keyed only on family and seed silently overwrote each other
+    across code changes: one run's score file ended up beside another run's
+    audit parquet, describing a different digest and a different row count. A
+    result that cannot be tied to the code that produced it is not a result.
+    """
+    root = Path(__file__).resolve().parents[1]
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=root, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except Exception:
+        commit = "nogit"
+    h = hashlib.sha256()
+    for path in sorted((root / "chakra").rglob("*.py")):
+        h.update(path.relative_to(root).as_posix().encode())
+        h.update(path.read_bytes())
+    return f"{commit}-{h.hexdigest()[:8]}"
+
+
+def _config_hash(cfg) -> str:
+    payload = {
+        k: (v.value if hasattr(v, "value") else v)
+        for k, v in sorted(vars(cfg).items())
+    }
+    return hashlib.sha256(json.dumps(payload, default=str).encode()).hexdigest()[:8]
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    """Write via a temp file and replace, so a crash mid-write cannot leave a
+    half-written manifest that later reads as authoritative."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def run_one(family_code: str, seed: int, generations: int, small: bool):
@@ -35,7 +77,10 @@ def run_one(family_code: str, seed: int, generations: int, small: bool):
     )
     loop = Loop(ATTACK_FAMILIES[family_code], cfg)
 
-    out = RUNS / f"{family_code}_seed{seed}"
+    # Run directory is keyed on code version and config as well as seed, so a
+    # score can never land beside an audit produced by different code.
+    code_v = _code_version()
+    out = RUNS / f"{family_code}_seed{seed}_{code_v}_{_config_hash(cfg)}"
 
     # Seal the audit set AND persist it before the loop trains anything, so the
     # sealed evaluation set demonstrably exists independently of the result.
@@ -46,7 +91,7 @@ def run_one(family_code: str, seed: int, generations: int, small: bool):
     results = loop.run()
 
     final_params = [results[-1].best_params] if results and results[-1].best_params else init_params
-    bundle, threshold = loop.score_locked_audit(Rng(seed + 999, tag="auditscore"), final_params)
+    bundle, threshold = loop.score_locked_audit(Rng(seed + 999, tag="auditscore"), final_params, out)
 
     (out / "generations.json").write_text(
         json.dumps(
@@ -69,13 +114,20 @@ def run_one(family_code: str, seed: int, generations: int, small: bool):
         ),
         encoding="utf-8",
     )
-    (out / "audit_score.json").write_text(
+    _write_atomic(
+        out / "audit_score.json",
         json.dumps(
-            {"threshold": threshold, "metrics": bundle.to_dict(), "audit_digest": audit.digest},
+            {
+                "threshold": threshold,
+                "metrics": bundle.to_dict(),
+                "audit_digest": audit.digest,
+                "code_version": code_v,
+                "seed": seed,
+                "family": family_code,
+            },
             indent=2,
             default=float,
         ),
-        encoding="utf-8",
     )
     return results, bundle, audit
 

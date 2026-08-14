@@ -180,6 +180,50 @@ class Ctx:
     window: timedelta | None
 
 
+# Fields a decision row may expose at request time. Everything else — above all
+# `label` and `family` — is ground truth that exists only because we generated
+# the data, and must never be reachable from a feature.
+_REQUEST_TIME_FIELDS = (
+    "instrument_id",
+    "counterparty_id",
+    "amount_inr",
+    "mcc",
+    "initiation_mode",
+    "is_collect",
+    "geo_state",
+    "device_id",
+    "bin",
+    "cvv_result",
+    "avs_result",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionView:
+    """An immutable, sanitised view of the transaction being decided.
+
+    Feature functions used to receive the whole Event, which carries `label` and
+    `family`. Nothing read them, but nothing prevented it either — a single
+    `dec.label` in a feature would have produced a perfect detector and a silent,
+    unfalsifiable result. Passing a view with no truth fields at all makes that
+    class of mistake impossible to write rather than merely discouraged.
+    """
+
+    event_id: str
+    rail: object
+    ts: datetime
+    payload: dict
+
+    @classmethod
+    def of(cls, event: Event) -> "DecisionView":
+        return cls(
+            event_id=event.event_id,
+            rail=event.rail,
+            ts=event.ts,
+            payload={k: event.payload.get(k) for k in _REQUEST_TIME_FIELDS if k in event.payload},
+        )
+
+
 def build_matrix(log, surface: Surface, rail=None, only_episodes: set | None = None):
     """Build (X, y, meta) for every decision event on `rail`, using only
     information visible to `surface` strictly before each decision.
@@ -200,6 +244,8 @@ def build_matrix(log, surface: Surface, rail=None, only_episodes: set | None = N
     model input.
     """
     import pandas as pd
+
+    from chakra.schema.events import _VISIBILITY as _VISIBLE_TO
 
     specs = features_for_surface(surface)
     index = VisibilityIndex(log, surface)
@@ -223,10 +269,17 @@ def build_matrix(log, surface: Surface, rail=None, only_episodes: set | None = N
         # lookup enforces available_at < as_of, so the decision event itself and
         # its own later outcome are both excluded.
         as_of = dec.ts
+        # A decision row must itself be visible to the model's surface and
+        # available at the instant it is scored. Without this, a PSP-only
+        # request, or one whose availability lies in the future, still became a
+        # network row and exposed its own amount.
+        if dec.surface not in _VISIBLE_TO[surface] or dec.available_at > as_of:
+            continue
+        view = DecisionView.of(dec)
         row: dict[str, float] = {}
         for spec in specs:
             ctx = Ctx(index=index, as_of=as_of, window=spec.window)
-            row[spec.name] = float(spec.fn(ctx, as_of, dec))
+            row[spec.name] = float(spec.fn(ctx, as_of, view))
         rows.append(row)
         ys.append(1 if (dec.label is not None and dec.label.value == "fraud") else 0)
         meta.append(

@@ -7,3 +7,5 @@ runs/*/
 !runs/.gitkeep
 .ipynb_checkpoints/
 kaggle.json
+chakra.egg-info/
+*.egg-info/

@@ -23,6 +23,11 @@ class MetricBundle:
     false_alerts_per_million: float
     value_weighted_recall: float
     worst_family_recall: float
+    # FPR actually realised at each frozen cut. An intended budget that is not
+    # achieved on the evaluation set is the single most misleading thing a
+    # recall figure can hide.
+    achieved_fpr_at_0_1pct_cut: float = 0.0
+    achieved_fpr_at_0_5pct_cut: float = 0.0
     per_family_recall: dict[str, float] = field(default_factory=dict)
     n: int = 0
     n_fraud: int = 0
@@ -86,6 +91,7 @@ def evaluate(
     meta: pd.DataFrame,
     operating_fpr: float = 0.005,
     threshold: float | None = None,
+    frozen_thresholds: dict[float, float] | None = None,
 ) -> MetricBundle:
     """Compute the metric panel.
 
@@ -109,12 +115,27 @@ def evaluate(
     auprc = float(average_precision_score(y, scores)) if has_both else float("nan")
     auc = float(roc_auc_score(y, scores)) if has_both else float("nan")
 
-    r01 = recall_at_fpr(y, scores, 0.001)
-    r05 = recall_at_fpr(y, scores, 0.005)
-
-    # frozen calibration cut when supplied; self-derived only as a fallback
-    thr = threshold if threshold is not None else _threshold_at_fpr(y, scores, operating_fpr)
     legit = y == 0
+
+    # Headline recalls must be read at thresholds frozen on separate calibration
+    # data, not at cuts derived from these very labels. Deriving them here reads
+    # recall at whatever cut this evaluation set happens to imply, which flatters
+    # the result and is not the cut a deployment would use: on one seed the
+    # displayed 0.5%-FPR recall was 0.955 while the frozen threshold actually
+    # achieved 0.0427% FPR and 0.9459 recall. The achieved FPR is reported beside
+    # each figure so the gap between intended and realised budget is visible.
+    def _at(frozen: float | None, target: float) -> tuple[float, float]:
+        cut = frozen if frozen is not None else _threshold_at_fpr(y, scores, target)
+        flagged = scores >= cut
+        rec = float(flagged[y == 1].mean()) if (y == 1).sum() else 0.0
+        achieved = float(flagged[legit].mean()) if legit.sum() else 0.0
+        return rec, achieved
+
+    r01, r01_fpr = _at(frozen_thresholds.get(0.001) if frozen_thresholds else None, 0.001)
+    r05, r05_fpr = _at(frozen_thresholds.get(0.005) if frozen_thresholds else None, 0.005)
+
+    # operating cut for the remaining threshold-dependent metrics
+    thr = threshold if threshold is not None else _threshold_at_fpr(y, scores, operating_fpr)
     false_alerts = int(((scores >= thr) & legit).sum())
     fapm = (false_alerts / max(1, legit.sum())) * 1_000_000
 
@@ -140,6 +161,8 @@ def evaluate(
         auc_roc=auc,
         recall_at_0_1pct_fpr=r01,
         recall_at_0_5pct_fpr=r05,
+        achieved_fpr_at_0_1pct_cut=r01_fpr,
+        achieved_fpr_at_0_5pct_cut=r05_fpr,
         false_alerts_per_million=fapm,
         value_weighted_recall=vwr,
         worst_family_recall=worst,

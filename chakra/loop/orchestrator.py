@@ -114,6 +114,10 @@ class Loop:
     def __init__(self, family: AttackFamily, config: LoopConfig) -> None:
         self.family = family
         self.config = config
+        # The family owns its rail. Taking it from config would let a UPI family
+        # be scored by a card-scoped detector with no error anywhere.
+        if getattr(family, "rail", None) is not None:
+            self.config.rail = family.rail
         self.root = Rng(config.seed, tag=f"loop/{family.code.value}")
         self.proposer = EvolutionaryProposer(family)
         self.detector = Detector(DetectorConfig(random_state=config.seed))
@@ -141,33 +145,20 @@ class Loop:
             world_start=self._world_start,
         )
 
-        attack_events = []
-        for params in params_list:
-            attack_events.extend(
-                self.family.emit(
-                    rng,
-                    pop,
-                    params,
-                    start=self._world_start
-                    + timedelta(hours=rng.uniform(1, self.config.world_span_days * 20)),
-                    n_episodes=self.config.episodes_per_param,
-                )
-            )
-        n_fraud = sum(
-            1
-            for e in attack_events
-            if e.event_type is EventType.TXN_AUTH_REQUESTED and e.rail is self.config.rail
-        )
-
-        # Prevalence is targeted WITHIN the scoped rail, so the world must be
-        # sized by how much genuine traffic that rail actually carries.
-        p = self.config.target_prevalence
-        need_legit_on_rail = int(round(n_fraud * (1.0 - p) / max(1e-9, p)))
-        rail_share = max(1e-6, C.rail_share_of_legit(self.config.rail.value))
-        per_consumer_day_on_rail = max(0.01, C.CONSUMER_DAILY_TXN_MEAN * rail_share)
-        days = max(
-            0.5, need_legit_on_rail / (self.config.n_consumers * per_consumer_day_on_rail)
-        )
+        # Pass 1 sizes the world, pass 2 places the attacks. Both must emit the
+        # IDENTICAL episodes or the sizing is for a different attack volume than
+        # the one injected — episode length varies with decline tolerance, which
+        # left realised prevalence ~18% above target. Deriving the attack stream
+        # from a fixed seed rather than a fresh spawn makes the two passes agree
+        # exactly; placement draws come from a separate stream so they cannot
+        # perturb the emission sequence.
+        # Derived from THIS stream's fingerprint, not from a constant: a fixed
+        # seed made every stream emit identical attack event ids and destroyed
+        # the four-stream separation the loop depends on. Per-stream and stable
+        # across both passes is exactly what is needed.
+        attack_seed = self.config.seed + int(rng.stream_id)
+        n_fraud = self._count_fraud_rows(Rng(attack_seed, tag="attacks"), pop, params_list)
+        days = self._days_for_prevalence(n_fraud)
 
         log = generate_background(
             rng,
@@ -176,14 +167,81 @@ class Loop:
             days=days,
             only_rail=self.config.rail.value,
         )
-        log.extend(attack_events)
+        # Pass 2: same episodes, now placed inside the evaluation interval.
+        log.extend(
+            self._schedule_attacks(
+                Rng(attack_seed, tag="attacks"), rng.spawn("placement"), pop, params_list, days
+            )
+        )
         return log
+
+    def _count_fraud_rows(self, rng: Rng, pop, params_list) -> int:
+        n = 0
+        for params in params_list:
+            events = self.family.emit(
+                rng, pop, params, start=self._world_start, n_episodes=self.config.episodes_per_param
+            )
+            n += sum(
+                1
+                for e in events
+                if e.event_type is EventType.TXN_AUTH_REQUESTED and e.rail is self.config.rail
+            )
+        return max(1, n)
+
+    def _days_for_prevalence(self, n_fraud: int) -> float:
+        """Interval length that puts fraud at the target prevalence WITHIN the
+        scoped rail — sized by how much genuine traffic that rail carries."""
+        p = self.config.target_prevalence
+        need_legit_on_rail = int(round(n_fraud * (1.0 - p) / max(1e-9, p)))
+        rail_share = max(1e-6, C.rail_share_of_legit(self.config.rail.value))
+        participation = max(1e-6, C.rail_participation_rate(self.config.rail.value))
+        per_consumer_day_on_rail = max(
+            0.01, C.CONSUMER_DAILY_TXN_MEAN * rail_share * participation
+        )
+        return max(1.0, need_legit_on_rail / (self.config.n_consumers * per_consumer_day_on_rail))
+
+    def _schedule_attacks(self, rng: Rng, place_rng: Rng, pop, params_list, days: float):
+        """Place attacks after warm-up and spread them across the interval.
+
+        Attacks used to land in the first hours of a world whose genuine traffic
+        then ran for months, so almost no genuine history existed before the
+        first fraud and every fraud row was, trivially, in an unfamiliar world.
+        A detector can score that perfectly by learning the schedule.
+        """
+        warm = C.WARMUP_FRACTION * days
+        span = max(0.5, days - warm)
+        events = []
+        for params in params_list:
+            offset_days = warm + place_rng.uniform(0.0, span)
+            events.extend(
+                self.family.emit(
+                    rng,
+                    pop,
+                    params,
+                    start=self._world_start + timedelta(days=offset_days),
+                    n_episodes=self.config.episodes_per_param,
+                )
+            )
+        return events
 
     def _matrix(self, log: EventLog):
         """Rows are scoped to the family's own rail. A card-fraud detector must
         not be trained, calibrated or audited against UPI negatives it will
         never be asked to score."""
         return build_matrix(log, self.config.surface, rail=self.config.rail)
+
+    def _calibration_scores(self, rng: Rng, params_list: list[AttackParams]):
+        """Scores and labels on a dedicated calibration stream."""
+        log = self._build_stream(rng.spawn("cal"), params_list)
+        features, y, _ = self._matrix(log)
+        return self.detector.score(features), y.values
+
+    @staticmethod
+    def _cut_at(scores, y, target_fpr: float) -> float:
+        legit = scores[y == 0]
+        if len(legit) == 0:
+            return 0.5
+        return float(np.quantile(legit, 1.0 - target_fpr))
 
     def _calibrate(self, rng: Rng, params_list: list[AttackParams]) -> float:
         """Operating threshold at the target FPR, on its own calibration stream.
@@ -227,32 +285,17 @@ class Loop:
             n_merchants=self.config.n_merchants,
             world_start=self._world_start,
         )
-        probe = []
-        for params in params_list:
-            probe.extend(
-                self.family.emit(
-                    rng, pop, params, start=self._world_start, n_episodes=1
-                )
-            )
-        n_fraud = max(
-            1,
-            sum(
-                1
-                for e in probe
-                if e.event_type is EventType.TXN_AUTH_REQUESTED and e.rail is self.config.rail
-            )
-            // max(1, len(params_list)),
+        # size for ONE candidate's episodes, since that is what gets injected
+        per_candidate = max(
+            1, self._count_fraud_rows(rng.spawn("sizing"), pop, params_list) // max(1, len(params_list))
         )
-        p = self.config.target_prevalence
-        need = int(round(n_fraud * (1.0 - p) / max(1e-9, p)))
-        share = max(1e-6, C.rail_share_of_legit(self.config.rail.value))
-        days = max(0.5, need / (self.config.n_consumers * max(0.01, C.CONSUMER_DAILY_TXN_MEAN * share)))
+        days = self._days_for_prevalence(per_candidate)
         log = generate_background(
             rng, pop, start=self._world_start, days=days, only_rail=self.config.rail.value
         )
-        return pop, log
+        return pop, log, days
 
-    def _episode_outcomes(
+    def _episode_outcomes(  # noqa: C901
         self, rng: Rng, params: AttackParams, threshold: float, world=None
     ) -> list[EpisodeOutcome]:
         """Run one parameter vector and score it at the episode level, in order.
@@ -266,14 +309,15 @@ class Loop:
             log = self._build_stream(rng, [params])
             episode_ids = None
         else:
-            pop, base = world
+            pop, base, days = world
             log = base.copy()
+            warm = C.WARMUP_FRACTION * days
             injected = self.family.emit(
                 rng,
                 pop,
                 params,
                 start=self._world_start
-                + timedelta(hours=rng.uniform(1, self.config.world_span_days * 20)),
+                + timedelta(days=warm + rng.uniform(0.0, max(0.5, days - warm))),
                 n_episodes=1,
             )
             log.extend(injected)
@@ -323,6 +367,21 @@ class Loop:
                 elif e.event_type is EventType.TXN_AUTH_REQUESTED:
                     probe_pos += 1
 
+            # Cost is counted only through the first alert, for the same reason
+            # yield is: once flagged, the tester stops. Summing the whole planned
+            # burst charged the attacker for probes it would never have made and
+            # made early detection look cheaper for the attacker than it is.
+            spent_rows = grp.iloc[: max(1, first_alert)]
+            probe_cost = float(spent_rows["amount_inr"].sum())
+            # Rotation is not free: each burnt device and each fresh endpoint is
+            # an acquired asset. Charging only probe value made rotation a
+            # cost-free evasion, which is not the trade a real tester faces.
+            n_dev = max(1, int(np.ceil(first_alert / max(1, int(params["probes_per_device"])))))
+            n_end = max(1, int(np.ceil(first_alert / max(1, int(params["probes_per_endpoint"])))))
+            rotation_cost = C.DEVICE_ACQUISITION_COST_INR * (n_dev - 1) + (
+                C.ENDPOINT_ACQUISITION_COST_INR * (n_end - 1)
+            )
+
             out.append(
                 EpisodeOutcome(
                     episode_id=str(ep),
@@ -331,7 +390,7 @@ class Loop:
                     validated_total=validated_total,
                     probes_to_alert=first_alert,
                     probes=len(idx),
-                    probe_value_spent=float(grp["amount_inr"].sum()),
+                    probe_value_spent=probe_cost + rotation_cost,
                 )
             )
         return out
@@ -380,7 +439,7 @@ class Loop:
         )
         return self._audit
 
-    def score_locked_audit(self, rng: Rng, params_list: list[AttackParams]):
+    def score_locked_audit(self, rng: Rng, params_list: list[AttackParams], directory=None):
         """The single, final look at the audit stream.
 
         The threshold is frozen on separate calibration data and passed INTO the
@@ -394,8 +453,17 @@ class Loop:
 
         if self._audit is None:
             raise RuntimeError("no locked audit stream was built")
-        self._audit.claim_scoring()  # verifies the seal and consumes the one look
-        threshold = self._calibrate(rng, params_list)
+        self._audit.claim_scoring(directory)  # verifies the seal, consumes the one look
+        # One calibration stream, three cuts frozen on it: the operating budget
+        # plus the two headline reporting budgets. Deriving the headline cuts
+        # from the audit labels instead would read recall at whatever this set
+        # happens to imply rather than at the cut a deployment would use.
+        cal_scores, cal_y = self._calibration_scores(rng, params_list)
+        frozen = {
+            0.001: self._cut_at(cal_scores, cal_y, 0.001),
+            0.005: self._cut_at(cal_scores, cal_y, 0.005),
+        }
+        threshold = self._cut_at(cal_scores, cal_y, self.config.target_fpr)
         scores = self.detector.score(self._audit.features)
         bundle = evaluate(
             self._audit.labels.values,
@@ -403,6 +471,7 @@ class Loop:
             self._audit.meta,
             operating_fpr=self.config.target_fpr,
             threshold=threshold,
+            frozen_thresholds=frozen,
         )
         return bundle, threshold
 

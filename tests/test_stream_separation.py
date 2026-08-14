@@ -62,9 +62,17 @@ def test_prevalence_is_controlled(loop_results):
     """Blended prevalence must track the calibrated target. An uncontrolled
     stream once ran ~25% fraud, which makes AUPRC and every threshold
     uninterpretable."""
+    from chakra.generate import calibration as C
+
+    target = C.TARGET_BLENDED_FRAUD_PREVALENCE
     for gen in loop_results:
-        assert 0.0005 < gen.prevalence < 0.05, (
-            f"generation {gen.generation}: prevalence {gen.prevalence:.4f} off target"
+        # A band tight enough to catch a systematic error. The previous range
+        # (0.05%-5%) spanned two orders of magnitude and passed happily while
+        # realised prevalence sat 30% off target from a double-counted card
+        # ownership discount.
+        assert 0.75 * target < gen.prevalence < 1.35 * target, (
+            f"generation {gen.generation}: prevalence {gen.prevalence:.5f} "
+            f"is off target {target:.5f} by more than the tolerated band"
         )
 
 
