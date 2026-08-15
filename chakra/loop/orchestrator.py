@@ -238,10 +238,25 @@ class Loop:
 
     @staticmethod
     def _cut_at(scores, y, target_fpr: float) -> float:
-        legit = scores[y == 0]
+        """Smallest cut whose realised FPR does not exceed the target.
+
+        A plain quantile is not tie-safe with a `>=` rule. With many identical
+        legitimate scores the quantile lands ON the tied value, every one of them
+        satisfies `>=`, and a nominal 0.5% budget produces 100% FPR. Selecting
+        from the observed scores and checking the realised rate makes the
+        threshold mean what it says even when the score distribution is degenerate.
+        """
+        legit = np.sort(scores[y == 0])
         if len(legit) == 0:
-            return 0.5
-        return float(np.quantile(legit, 1.0 - target_fpr))
+            return float("inf")
+        # candidate cuts: just above each distinct legitimate score, plus one
+        # above the maximum so an all-tied distribution can still reach 0 FPR.
+        distinct = np.unique(legit)
+        candidates = np.concatenate([distinct, [np.nextafter(distinct[-1], np.inf)]])
+        for cut in candidates:
+            if float((legit >= cut).mean()) <= target_fpr:
+                return float(cut)
+        return float(np.nextafter(distinct[-1], np.inf))
 
     def _calibrate(self, rng: Rng, params_list: list[AttackParams]) -> float:
         """Operating threshold at the target FPR, on its own calibration stream.
@@ -312,13 +327,25 @@ class Loop:
             pop, base, days = world
             log = base.copy()
             warm = C.WARMUP_FRACTION * days
+
+            # A COPY of the shared population. Candidates were mutating the
+            # shared pop by registering their burner devices into it, so later
+            # candidates inherited earlier candidates' devices and the "common"
+            # world drifted as the generation progressed.
+            pop = pop.snapshot()
+
+            # Candidates share the world AND the attack randomness. Sharing only
+            # the background left each candidate a different draw for card
+            # numbers, CVV outcomes and jitter, so part of the fitness gap
+            # between them was still luck rather than parameters. The rng is
+            # derived from the world and replicate, never from the candidate.
             injected = self.family.emit(
                 rng,
                 pop,
                 params,
                 start=self._world_start
                 + timedelta(days=warm + rng.uniform(0.0, max(0.5, days - warm))),
-                n_episodes=1,
+                n_episodes=self.config.episodes_per_param,
             )
             log.extend(injected)
             episode_ids = {e.episode_id for e in injected if e.episode_id}
@@ -367,11 +394,12 @@ class Loop:
                 elif e.event_type is EventType.TXN_AUTH_REQUESTED:
                     probe_pos += 1
 
-            # Cost is counted only through the first alert, for the same reason
-            # yield is: once flagged, the tester stops. Summing the whole planned
-            # burst charged the attacker for probes it would never have made and
-            # made early detection look cheaper for the attacker than it is.
-            spent_rows = grp.iloc[: max(1, first_alert)]
+            # Cost is counted through and INCLUDING the alerting probe, for the
+            # same reason yield stops just before it: the probe that trips the
+            # alert was still sent and still paid for. Slicing to `first_alert`
+            # excluded exactly that probe, quietly discounting the most expensive
+            # attempt in the burst.
+            spent_rows = grp.iloc[: min(len(grp), first_alert + 1)]
             probe_cost = float(spent_rows["amount_inr"].sum())
             # Rotation is not free: each burnt device and each fresh endpoint is
             # an acquired asset. Charging only probe value made rotation a
@@ -453,7 +481,7 @@ class Loop:
 
         if self._audit is None:
             raise RuntimeError("no locked audit stream was built")
-        self._audit.claim_scoring(directory)  # verifies the seal, consumes the one look
+        self._audit.claim_scoring(directory)  # verifies the seal, reserves the one look
         # One calibration stream, three cuts frozen on it: the operating budget
         # plus the two headline reporting budgets. Deriving the headline cuts
         # from the audit labels instead would read recall at whatever this set
@@ -473,6 +501,8 @@ class Loop:
             threshold=threshold,
             frozen_thresholds=frozen,
         )
+        # Only now, with a result in hand, is the single look made permanent.
+        self._audit.commit_scoring(directory)
         return bundle, threshold
 
     def run(self) -> list[GenerationResult]:
@@ -512,7 +542,15 @@ class Loop:
                 # that selection is mostly sampling error.
                 rep_outcomes: list[EpisodeOutcome] = []
                 for rep, shared in enumerate(worlds):
-                    fb_rng = rng.spawn(f"fb{gen}_{i}_{rep}")
+                    # Note the seed depends on (generation, replicate) only —
+                    # NOT on the candidate index. Every candidate in this
+                    # generation therefore faces identical attack randomness as
+                    # well as an identical world, so the only thing that differs
+                    # between them is their parameters.
+                    fb_rng = Rng(
+                        self.config.seed + 31_000_000 + gen * 1000 + rep,
+                        tag=f"fb{gen}_{rep}",
+                    )
                     rep_outcomes.extend(
                         self._episode_outcomes(fb_rng, params, thr_pre, world=shared)
                     )

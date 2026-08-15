@@ -15,6 +15,7 @@ instead of the result quietly becoming meaningless.
 from __future__ import annotations
 
 import hashlib
+import os
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -56,29 +57,54 @@ class LockedAudit:
             )
 
     def claim_scoring(self, directory: Path | None = None) -> None:
-        """Consume the single permitted scoring.
+        """Reserve the single permitted scoring.
 
-        The in-memory flag alone was process-local: a fresh interpreter reset it,
-        so "scored once" held only within a single run. When a directory is
-        given, a `scored.marker` file makes the claim durable, which is the only
-        version that stops a disappointing number being quietly re-rolled.
+        Two-phase, because a single marker written before scoring is unsafe in
+        the other direction: a crash mid-scoring would permanently consume the
+        audit without ever producing a result, and the set could never be scored
+        again. Reservation is exclusive (O_CREAT|O_EXCL, so two processes cannot
+        both win it) and is only promoted to a permanent record by
+        commit_scoring() once a result actually exists. A stale reservation left
+        by a crash is reported as such rather than looking like a completed run.
         """
         if self._scored:
             raise RuntimeError(
                 "locked audit stream has already been scored once in this process."
             )
-        marker = (directory / "scored.marker") if directory else None
-        if marker is not None and marker.exists():
-            raise RuntimeError(
-                f"locked audit stream at {directory} was already scored "
-                f"(marker written {marker.read_text(encoding='utf-8').strip()}). "
-                "Build a new audit set from a new seed rather than re-scoring."
-            )
         self.verify()
+        if directory is not None:
+            scored = directory / "scored.json"
+            if scored.exists():
+                raise RuntimeError(
+                    f"locked audit stream at {directory} was already scored. "
+                    "Build a new audit set from a new seed rather than re-scoring."
+                )
+            directory.mkdir(parents=True, exist_ok=True)
+            pending = directory / "scoring.pending"
+            try:
+                fd = os.open(pending, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError as exc:
+                raise RuntimeError(
+                    f"a scoring attempt for {directory} is already in progress or "
+                    "crashed partway (scoring.pending exists). Inspect and remove "
+                    "it deliberately before retrying."
+                ) from exc
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(f"digest={self.digest}")
         self._scored = True
-        if marker is not None:
-            marker.parent.mkdir(parents=True, exist_ok=True)
-            marker.write_text(f"digest={self.digest}", encoding="utf-8")
+
+    def commit_scoring(self, directory: Path | None = None) -> None:
+        """Promote the reservation to a permanent record, once a result exists."""
+        if directory is None:
+            return
+        pending = directory / "scoring.pending"
+        scored = directory / "scored.json"
+        scored.write_text(
+            json.dumps({"digest": self.digest, "seed": self.seed, "family": self.family}, indent=2),
+            encoding="utf-8",
+        )
+        if pending.exists():
+            pending.unlink()
 
     def save(self, directory: Path, allow_overwrite: bool = False) -> Path:
         manifest_path = directory / "audit_manifest.json"

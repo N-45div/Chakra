@@ -86,6 +86,24 @@ class Population:
     devices: dict[str, Device] = field(default_factory=dict)
     agents: dict[str, AgentIdentity] = field(default_factory=dict)
 
+    def snapshot(self) -> "Population":
+        """An isolated copy sharing the same entity objects.
+
+        Attacks register the entities they create — burner devices above all —
+        into the population they are handed. When several candidates are
+        evaluated against one shared world, each was mutating that shared
+        population, so later candidates inherited earlier candidates' devices and
+        the "common" world silently drifted across the generation. Each candidate
+        now gets its own view; the entity objects themselves are immutable in
+        practice and safe to share.
+        """
+        return Population(
+            parties=dict(self.parties),
+            instruments=dict(self.instruments),
+            devices=dict(self.devices),
+            agents=dict(self.agents),
+        )
+
     def add_party(self, p: Party) -> Party:
         self.parties[p.party_id] = p
         return p

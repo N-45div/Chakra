@@ -339,8 +339,14 @@ def _emit_auth_request(log, rng, init, consumer, rail, when, device_id, extra=No
     return auth
 
 
-def _emit_outcome(log, rng, init, consumer, rail, after, device_id):
-    """Authorisation outcome, strictly after the authorisation request."""
+def _emit_outcome(log, rng, auth, consumer, rail, after, device_id):
+    """Authorisation outcome, strictly after the authorisation request.
+
+    `linked_txn_id` points at the AUTH REQUEST that produced this outcome. It was
+    missing entirely, which meant the ordering test that checked
+    "outcome follows its auth request" matched nothing and passed vacuously on
+    every run — a green test asserting nothing at all.
+    """
     approved = _approved(rng)
     et = EventType.TXN_AUTHORISED if approved else EventType.TXN_DECLINED
     outcome_ts = after + timedelta(seconds=rng.uniform(0.2, 2.0))
@@ -353,12 +359,16 @@ def _emit_outcome(log, rng, init, consumer, rail, after, device_id):
             actor_id=consumer.party_id,
             surface=Surface.NETWORK,
             available_at=outcome_ts,
-            label=Label.LEGIT,
+            episode_id=auth.episode_id,
+            label=auth.label,
+            family=auth.family,
             payload={
-                "instrument_id": init.payload["instrument_id"],
-                "counterparty_id": init.payload["counterparty_id"],
-                "amount_inr": init.payload["amount_inr"],
+                "instrument_id": auth.payload["instrument_id"],
+                "counterparty_id": auth.payload["counterparty_id"],
+                "amount_inr": auth.payload["amount_inr"],
                 "device_id": device_id,
+                "linked_txn_id": auth.event_id,
+                "linked_initiation_id": auth.payload.get("linked_txn_id"),
                 "decline_reason": None if approved else "issuer_decline",
             },
         )

@@ -53,13 +53,22 @@ class MetricBundle:
 
 
 def _threshold_at_fpr(y: np.ndarray, scores: np.ndarray, target_fpr: float) -> float:
-    """Smallest threshold whose FPR on legit rows is <= target_fpr."""
-    legit = scores[y == 0]
+    """Smallest threshold whose realised FPR on legit rows is <= target_fpr.
+
+    Tie-safe. A plain quantile with a `>=` decision rule lands on the tied value
+    when scores are degenerate — 1,000 identical legitimate scores turned a
+    nominal 0.5% budget into 100% realised FPR. Choosing from the observed
+    scores and checking the realised rate makes the threshold mean what it says.
+    """
+    legit = np.sort(scores[y == 0])
     if len(legit) == 0:
         return 1.0
-    # quantile of legit scores at (1 - target_fpr)
-    q = np.quantile(legit, 1.0 - target_fpr)
-    return float(q)
+    distinct = np.unique(legit)
+    candidates = np.concatenate([distinct, [np.nextafter(distinct[-1], np.inf)]])
+    for cut in candidates:
+        if float((legit >= cut).mean()) <= target_fpr:
+            return float(cut)
+    return float(np.nextafter(distinct[-1], np.inf))
 
 
 def recall_at_fpr(y: np.ndarray, scores: np.ndarray, target_fpr: float) -> float:

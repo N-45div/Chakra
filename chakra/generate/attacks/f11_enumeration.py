@@ -198,6 +198,8 @@ class F11Enumeration(AttackFamily):
                         "counterparty_id": target_id,
                         "amount_inr": amount,
                         "device_id": device.device_id,
+                        "linked_txn_id": auth.event_id,
+                        "linked_initiation_id": init.event_id,
                         "decline_reason": None if live else "do_not_honor",
                     },
                 )

@@ -92,6 +92,48 @@ def _window_slice(events: list[Event], as_of: datetime, window: timedelta | None
 
 _KEY_FIELDS = ("device_id", "counterparty_id", "instrument_id")
 
+# Fields a row may expose at request time. Everything else — above all `label`
+# and `family` — is ground truth that exists only because we generated the data,
+# and must be unreachable from a feature. Defined here because both the
+# historical views and the decision view are built from it.
+_REQUEST_TIME_FIELDS = (
+    "instrument_id",
+    "counterparty_id",
+    "amount_inr",
+    "mcc",
+    "initiation_mode",
+    "is_collect",
+    "geo_state",
+    "device_id",
+    "bin",
+    "cvv_result",
+    "avs_result",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalView:
+    """A truth-free view of one past event, as the network would have seen it.
+
+    This is what `prior()` returns instead of a raw Event. It carries the
+    observable outcome — that a past attempt was declined is a network fact — but
+    it has NO `label` and NO `family` attribute at all, so a feature cannot read
+    ground truth from history even by mistake. The earlier index handed back raw
+    Events whose `.label` was readable; the guarantee that features see no truth
+    was therefore only a convention, and an adversarial test read a prior fraud
+    label straight through it. Removing the attribute makes the leak impossible
+    to write rather than merely discouraged.
+    """
+
+    ts: datetime
+    available_at: datetime
+    was_declined: bool
+    amount_inr: float
+    payload: dict
+
+    def get(self, key: str, default=None):
+        return self.payload.get(key, default)
+
 
 class VisibilityIndex:
     def __init__(self, log, surface: Surface):
@@ -104,7 +146,7 @@ class VisibilityIndex:
         allowed = _VISIBILITY[surface]
         events = [e for e in log.sorted_by_time() if e.surface in allowed]
 
-        # (rail, field, value, kind) -> (sorted ts list, events list)
+        # (rail, field, value, kind) -> (sorted ts list, HistoricalView list)
         self._groups: dict[tuple, tuple[list, list]] = {}
         for e in events:
             # "attempt" is the authorisation REQUEST, not the initiation: the
@@ -117,33 +159,43 @@ class VisibilityIndex:
                 kind = "outcome"
             else:
                 continue
+            # Build the sanitised view ONCE per event, carrying only
+            # request-time fields plus the observable outcome — never label or
+            # family.
+            view = HistoricalView(
+                ts=e.ts,
+                available_at=e.available_at,
+                was_declined=e.event_type is EventType.TXN_DECLINED,
+                amount_inr=float(e.payload.get("amount_inr", 0.0)),
+                payload={k: e.payload.get(k) for k in _REQUEST_TIME_FIELDS if k in e.payload},
+            )
             for field_name in _KEY_FIELDS:
                 val = e.payload.get(field_name)
                 if val is None:
                     continue
                 key = (e.rail, field_name, val, kind)
-                ts_list, ev_list = self._groups.setdefault(key, ([], []))
+                ts_list, view_list = self._groups.setdefault(key, ([], []))
                 ts_list.append(e.ts)
-                ev_list.append(e)
+                view_list.append(view)
 
     def prior(
-        self, dec: Event, field_name: str, kind: str, as_of: datetime, window: timedelta | None
-    ) -> list[Event]:
-        """Events sharing an observable key with `dec`, on the same rail, within
-        `window`, and available strictly before `as_of`."""
+        self, dec, field_name: str, kind: str, as_of: datetime, window: timedelta | None
+    ) -> list["HistoricalView"]:
+        """Truth-free views sharing an observable key with `dec`, on the same
+        rail, within `window`, and available strictly before `as_of`."""
         val = dec.payload.get(field_name)
         if val is None:
             return []
         entry = self._groups.get((dec.rail, field_name, val, kind))
         if entry is None:
             return []
-        ts_list, ev_list = entry
+        ts_list, view_list = entry
         lo_ix = 0
         if window is not None:
             lo_ix = self._bisect_left(ts_list, as_of - window)
         hi_ix = self._bisect_left(ts_list, as_of)
         # available_at is usually ts but may be later; enforce it explicitly.
-        return [e for e in ev_list[lo_ix:hi_ix] if e.available_at < as_of]
+        return [v for v in view_list[lo_ix:hi_ix] if v.available_at < as_of]
 
 
 # ---------------------------------------------------------------------------
@@ -178,24 +230,6 @@ class Ctx:
     index: "VisibilityIndex"
     as_of: datetime
     window: timedelta | None
-
-
-# Fields a decision row may expose at request time. Everything else — above all
-# `label` and `family` — is ground truth that exists only because we generated
-# the data, and must never be reachable from a feature.
-_REQUEST_TIME_FIELDS = (
-    "instrument_id",
-    "counterparty_id",
-    "amount_inr",
-    "mcc",
-    "initiation_mode",
-    "is_collect",
-    "geo_state",
-    "device_id",
-    "bin",
-    "cvv_result",
-    "avs_result",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -349,7 +383,7 @@ def decline_ratio_merchant_1h(ctx, as_of, dec):
     outs = _outcomes_by_key(ctx, dec, "counterparty_id")
     if not outs:
         return 0.0
-    declines = sum(1 for e in outs if e.event_type is EventType.TXN_DECLINED)
+    declines = sum(1 for v in outs if v.was_declined)
     return declines / len(outs)
 
 
@@ -358,7 +392,7 @@ def decline_ratio_device_1h(ctx, as_of, dec):
     outs = _outcomes_by_key(ctx, dec, "device_id")
     if not outs:
         return 0.0
-    declines = sum(1 for e in outs if e.event_type is EventType.TXN_DECLINED)
+    declines = sum(1 for v in outs if v.was_declined)
     return declines / len(outs)
 
 

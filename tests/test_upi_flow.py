@@ -38,18 +38,32 @@ def test_auth_request_never_precedes_the_pin():
     assert not violations, f"{len(violations)} UPI auth requests precede their own PIN"
 
 
+def test_every_outcome_links_to_its_auth_request():
+    """Guards against the previous version of the ordering test, which keyed
+    outcomes on a link field that did not exist, matched nothing, and passed
+    vacuously on every run."""
+    log = _log()
+    outcomes = [
+        e for e in log if e.event_type in (EventType.TXN_AUTHORISED, EventType.TXN_DECLINED)
+    ]
+    assert outcomes
+    unlinked = [e for e in outcomes if not e.payload.get("linked_txn_id")]
+    assert not unlinked, f"{len(unlinked)} of {len(outcomes)} outcomes carry no link"
+
+
 def test_outcome_follows_the_auth_request():
     log = _log()
-    auth_at = {
-        e.payload.get("linked_txn_id"): e.ts
-        for e in log
-        if e.event_type is EventType.TXN_AUTH_REQUESTED
+    auth_ts = {
+        e.event_id: e.ts for e in log if e.event_type is EventType.TXN_AUTH_REQUESTED
     }
+    checked = 0
     for e in log:
         if e.event_type in (EventType.TXN_AUTHORISED, EventType.TXN_DECLINED):
             src = e.payload.get("linked_txn_id")
-            if src in auth_at:
-                assert e.ts >= auth_at[src]
+            assert src in auth_ts, "outcome links to an unknown auth request"
+            assert e.ts >= auth_ts[src]
+            checked += 1
+    assert checked > 0, "no outcomes checked; the assertion would be vacuous"
 
 
 def test_initiation_is_not_network_visible():
