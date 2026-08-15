@@ -63,6 +63,21 @@ class AttackFamily(ABC):
     def default_params(self) -> AttackParams:
         return AttackParams({s.name: (s.low + s.high) / 2 for s in self.param_specs})
 
+    def infrastructure_cost(self, params: "AttackParams", attempts: int) -> float:
+        """Rupees the attacker spends on ASSETS to make `attempts`, excluding the
+        value of the payments themselves.
+
+        Declared per family because evasion is bought with different things on
+        each: F11 burns devices and merchant endpoints, F5 burns mule VPAs. The
+        loop previously hard-coded F11's knobs here, which crashed the moment a
+        second family was registered — a useful failure, since silently charging
+        one family's cost model to another would have been worse.
+
+        Default is zero, so a family that has not thought about cost gets no
+        free evasion by omission — it gets a visibly missing cost model.
+        """
+        return 0.0
+
     def sample_params(self, rng: Rng) -> AttackParams:
         return AttackParams(
             {s.name: rng.uniform(s.low, s.high) for s in self.param_specs}

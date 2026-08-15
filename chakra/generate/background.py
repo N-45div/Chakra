@@ -107,7 +107,7 @@ def generate_background(
                 _emit_card_txn(log, rng, cons, card, favourites, when, device)
             else:
                 vpa = second_vpa if (second_vpa and when >= second_vpa_from) else vpas[0]
-                _emit_upi_txn(log, rng, cons, vpa, favourites, when, device, peers=peers)
+                _emit_upi_txn(log, rng, cons, vpa, favourites, when, device, peers=peers, pop=pop)
 
     return log
 
@@ -181,7 +181,18 @@ def _upi_mode(rng: Rng) -> tuple[str, bool]:
     return mode, mode.endswith("collect")
 
 
-def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device, peers=None):
+def _payee_vpa_of(pop, party_id: str) -> str | None:
+    """The VPA money actually lands in. UPI addresses a handle, not a party, and
+    F5 turns entirely on the payer's relationship to a specific payee VPA."""
+    from chakra.schema.entities import InstrumentKind
+
+    for i in pop.instruments.values():
+        if i.owner_party_id == party_id and i.kind is InstrumentKind.VPA:
+            return i.instrument_id
+    return None
+
+
+def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device, peers=None, pop=None):
     amount = rng.amount_from_bands(C.UPI_AMOUNT_BANDS)
     device_id = device.device_id if device else None
     mode, is_collect = _upi_mode(rng)
@@ -195,27 +206,48 @@ def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device, peers=None):
         merch = rng.choice(peers)
     else:
         merch = rng.choice(merchants)
+    payee_vpa = _payee_vpa_of(pop, merch.party_id) if pop else None
 
-    init = Event(
-        event_id=rng.uid("ev"),
-        event_type=EventType.TXN_INITIATED,
-        rail=Rail.UPI,
-        ts=when,
-        actor_id=consumer.party_id,
-        surface=Surface.PSP_APP,
-        available_at=when,
-        label=Label.LEGIT,
-        payload={
-            "instrument_id": vpa.instrument_id,
-            "counterparty_id": merch.party_id,
-            "amount_inr": amount,
-            "mcc": rng.weighted_key(C.MERCHANT_CATEGORIES),
-            "initiation_mode": mode,
-            "is_collect": is_collect,
-            "geo_state": consumer.home_state,
-            "device_id": device_id,
-        },
-    )
+    payload = {
+        "instrument_id": vpa.instrument_id,
+        "payer_vpa": vpa.instrument_id,
+        "payee_vpa": payee_vpa,
+        "counterparty_id": merch.party_id,
+        "amount_inr": amount,
+        "mcc": rng.weighted_key(C.MERCHANT_CATEGORIES),
+        "initiation_mode": mode,
+        "is_collect": is_collect,
+        "geo_state": consumer.home_state,
+        "device_id": device_id,
+    }
+
+    # A collect is ORIGINATED BY THE PAYEE. Modelling it as a payer initiation
+    # with a flag would erase the one structural fact F5 depends on: someone
+    # else asked for this money, and the victim only approved it.
+    if is_collect:
+        init = Event(
+            event_id=rng.uid("ev"),
+            event_type=EventType.COLLECT_REQUESTED,
+            rail=Rail.UPI,
+            ts=when,
+            actor_id=merch.party_id,  # the PAYEE raises it
+            surface=Surface.PSP_APP,
+            available_at=when,
+            label=Label.LEGIT,
+            payload=payload,
+        )
+    else:
+        init = Event(
+            event_id=rng.uid("ev"),
+            event_type=EventType.TXN_INITIATED,
+            rail=Rail.UPI,
+            ts=when,
+            actor_id=consumer.party_id,
+            surface=Surface.PSP_APP,
+            available_at=when,
+            label=Label.LEGIT,
+            payload=payload,
+        )
     log.append(init)
 
     # PIN entry: after initiation, before the network is asked anything.
@@ -306,19 +338,17 @@ def _emit_card_txn(log, rng, consumer, card, merchants, when, device):
 
 def _emit_auth_request(log, rng, init, consumer, rail, when, device_id, extra=None):
     """The network-visible authorisation request — the scored decision point."""
-    payload = {
-        "instrument_id": init.payload["instrument_id"],
-        "counterparty_id": init.payload["counterparty_id"],
-        "amount_inr": init.payload["amount_inr"],
-        "mcc": init.payload.get("mcc"),
-        "initiation_mode": init.payload.get("initiation_mode"),
-        "geo_state": init.payload.get("geo_state"),
-        "device_id": device_id,
-        "linked_txn_id": init.event_id,
-    }
-    for k in ("bin", "cvv_result", "avs_result"):
-        if k in init.payload:
-            payload[k] = init.payload[k]
+    # Carry EVERY request-time field forward from the initiation.
+    #
+    # An earlier version enumerated the fields by hand and silently dropped
+    # payer_vpa and payee_vpa, so genuine authorisation rows had no VPA fields
+    # while F5's did. Every VPA-based feature then separated the classes
+    # perfectly — for a purely structural reason that had nothing to do with
+    # fraud. Copying the payload and overriding is the version that cannot rot
+    # as fields are added.
+    payload = dict(init.payload)
+    payload["device_id"] = device_id
+    payload["linked_txn_id"] = init.event_id
     if extra:
         payload.update(extra)
 

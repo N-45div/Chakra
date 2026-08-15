@@ -175,3 +175,9 @@ CONSUMER_DAILY_TXN_MEAN = 2.4
 # at a controlled prevalence set per experiment. This constant documents the
 # target blended prevalence the loop aims for when mixing attacks in.
 TARGET_BLENDED_FRAUD_PREVALENCE = 0.004  # 0.4%
+
+# A mule VPA is an acquired asset: a recruited or purchased account plus the
+# identity behind it. Fan-in is the loudest signal such a handle produces, and
+# spreading victims across more handles is the only way to suppress it — so a
+# free handle would make low fan-in a costless evasion. ASSUMPTION.
+MULE_VPA_ACQUISITION_COST_INR = 1500.0

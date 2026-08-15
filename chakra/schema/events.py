@@ -56,6 +56,11 @@ class Family(str, Enum):
 class EventType(str, Enum):
     # transaction
     TXN_INITIATED = "txn_initiated"
+    # A payee-originated request for money (UPI collect). Distinct from
+    # TXN_INITIATED because the direction of origination is the whole subject of
+    # F5: in a push the payer starts it, in a collect the payee does, and the
+    # deception is that a victim reads the second as the first.
+    COLLECT_REQUESTED = "collect_requested"
     # The moment the network is asked to approve. Distinct from initiation
     # because on UPI they are not the same instant: the payer opens a request,
     # authenticates with their PIN, and only then does an authorisation request

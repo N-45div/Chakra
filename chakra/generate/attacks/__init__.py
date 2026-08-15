@@ -9,9 +9,18 @@ this; it is the guarantee that the detector learns fraud, not the author's rules
 
 from chakra.generate.attacks.base import AttackFamily, AttackParams, ParamSpec
 from chakra.generate.attacks.f11_enumeration import F11Enumeration
+from chakra.generate.attacks.f5_upi_deception import F5UpiDeception
 
 ATTACK_FAMILIES: dict[str, AttackFamily] = {
     "F11": F11Enumeration(),
+    "F5": F5UpiDeception(),
 }
 
-__all__ = ["AttackFamily", "AttackParams", "ParamSpec", "ATTACK_FAMILIES", "F11Enumeration"]
+__all__ = [
+    "AttackFamily",
+    "AttackParams",
+    "ParamSpec",
+    "ATTACK_FAMILIES",
+    "F11Enumeration",
+    "F5UpiDeception",
+]

@@ -90,7 +90,7 @@ def _window_slice(events: list[Event], as_of: datetime, window: timedelta | None
 # is enforced on every lookup.
 # ---------------------------------------------------------------------------
 
-_KEY_FIELDS = ("device_id", "counterparty_id", "instrument_id")
+_KEY_FIELDS = ("device_id", "counterparty_id", "instrument_id", "payee_vpa", "payer_vpa")
 
 # Fields a row may expose at request time. Everything else — above all `label`
 # and `family` — is ground truth that exists only because we generated the data,
@@ -98,6 +98,8 @@ _KEY_FIELDS = ("device_id", "counterparty_id", "instrument_id")
 # historical views and the decision view are built from it.
 _REQUEST_TIME_FIELDS = (
     "instrument_id",
+    "payer_vpa",
+    "payee_vpa",
     "counterparty_id",
     "amount_inr",
     "mcc",
@@ -459,3 +461,90 @@ def is_zero_or_micro(ctx, as_of, dec):
     amount to evade this pays for it in card-testing cost, which is the kind of
     trade the loop should be forced to make."""
     return 1.0 if float(dec.payload.get("amount_inr", 0.0)) <= 5.0 else 0.0
+
+
+# ---------------------------------------------------------------------------
+# UPI / authorised-push features.
+#
+# These exist because F5 defeats everything above. The payer's own VPA, device
+# and PIN are genuine, so instrument novelty, device velocity and decline ratio
+# are all silent. What remains observable is the payer's relationship to the
+# PAYEE, and the shape of who else pays that payee.
+# ---------------------------------------------------------------------------
+
+@feature("payee_vpa_is_new_to_payer", Surface.NETWORK)
+def payee_vpa_is_new_to_payer(ctx, as_of, dec):
+    """1.0 when this payer has never paid this payee VPA before.
+
+    The single most direct signal for authorised-push fraud: the credentials are
+    correct, the amount may be ordinary, but the destination has no history with
+    this payer. It is deliberately not decisive on its own — genuine first
+    payments to a new merchant or contact happen constantly, which is exactly
+    why the background models a circle of known payees rather than routing
+    everything to random parties.
+    """
+    payee = dec.payload.get("payee_vpa")
+    if payee is None:
+        return 0.0
+    seen = {v.payload.get("payee_vpa") for v in _by_key(ctx, dec, "payer_vpa")}
+    return 0.0 if payee in seen else 1.0
+
+
+@feature("payee_vpa_fan_in_24h", Surface.NETWORK, window=timedelta(hours=24))
+def payee_vpa_fan_in_24h(ctx, as_of, dec):
+    """Distinct payers sending to this payee VPA in a day.
+
+    The mule signature, and the attacker's central trade-off: one handle
+    collecting from many unrelated victims is loud, and suppressing it means
+    rotating handles, which costs money per handle. A busy genuine merchant also
+    has high fan-in, so this is informative rather than decisive — which is what
+    makes it worth learning instead of hard-coding.
+    """
+    priors = _by_key(ctx, dec, "payee_vpa")
+    payers = {v.payload.get("payer_vpa") for v in priors}
+    payers.add(dec.payload.get("payer_vpa"))
+    payers.discard(None)
+    return float(len(payers))
+
+
+@feature("payee_vpa_age_attempts", Surface.NETWORK)
+def payee_vpa_age_attempts(ctx, as_of, dec):
+    """How many attempts this payee VPA has ever received. A handle standing up
+    to receive its first payments looks different from an established one."""
+    return float(len(_by_key(ctx, dec, "payee_vpa")))
+
+
+@feature("is_collect_flag", Surface.NETWORK)
+def is_collect_flag(ctx, as_of, dec):
+    """Whether this is a pull rather than a push.
+
+    Genuine merchant collect exists, so this cannot condemn a transaction by
+    itself. It matters because collect is the mechanism behind the direction
+    inversion that defines the family: the victim believes they are receiving.
+    """
+    return 1.0 if dec.payload.get("is_collect") else 0.0
+
+
+@feature("amount_vs_payer_median", Surface.NETWORK)
+def amount_vs_payer_median(ctx, as_of, dec):
+    """Amount relative to this payer's own typical payment.
+
+    Neutral 1.0 when the payer has no history, so a new customer is not
+    condemned by absence of evidence. This is the feature the attacker's
+    amount_ratio knob trades against: take more per victim and stand out here,
+    or blend in and earn less.
+    """
+    amounts = sorted(
+        float(v.payload.get("amount_inr") or 0.0) for v in _by_key(ctx, dec, "payer_vpa")
+    )
+    if not amounts:
+        return 1.0
+    median = amounts[len(amounts) // 2]
+    if median <= 0:
+        return 1.0
+    return float(dec.payload.get("amount_inr", 0.0)) / median
+
+
+@feature("payer_vpa_velocity_24h", Surface.NETWORK, window=timedelta(hours=24))
+def payer_vpa_velocity_24h(ctx, as_of, dec):
+    return float(len(_by_key(ctx, dec, "payer_vpa")))

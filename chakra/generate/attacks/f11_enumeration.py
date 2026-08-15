@@ -73,6 +73,23 @@ class F11Enumeration(AttackFamily):
             ParamSpec("probes_per_endpoint", 1, 60, integer=True),
         ]
 
+    def infrastructure_cost(self, params, attempts: int) -> float:
+        """Burner devices and merchant endpoints acquired to run `attempts`.
+
+        Both are real purchases. Charging for them is what stops "rotate every
+        probe" from being a dominant strategy that buys evasion for free.
+        """
+        from chakra.generate import calibration as C
+
+        per_device = max(1, int(params["probes_per_device"]))
+        per_endpoint = max(1, int(params["probes_per_endpoint"]))
+        n_dev = max(1, -(-attempts // per_device))
+        n_end = max(1, -(-attempts // per_endpoint))
+        return (
+            C.DEVICE_ACQUISITION_COST_INR * (n_dev - 1)
+            + C.ENDPOINT_ACQUISITION_COST_INR * (n_end - 1)
+        )
+
     def emit(self, rng, pop, params, start, n_episodes):
         params = AttackParams(params).clamped(self.param_specs)
         events: list[Event] = []

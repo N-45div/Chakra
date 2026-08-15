@@ -404,11 +404,9 @@ class Loop:
             # Rotation is not free: each burnt device and each fresh endpoint is
             # an acquired asset. Charging only probe value made rotation a
             # cost-free evasion, which is not the trade a real tester faces.
-            n_dev = max(1, int(np.ceil(first_alert / max(1, int(params["probes_per_device"])))))
-            n_end = max(1, int(np.ceil(first_alert / max(1, int(params["probes_per_endpoint"])))))
-            rotation_cost = C.DEVICE_ACQUISITION_COST_INR * (n_dev - 1) + (
-                C.ENDPOINT_ACQUISITION_COST_INR * (n_end - 1)
-            )
+            # Asset cost is the family's own business — see
+            # AttackFamily.infrastructure_cost.
+            rotation_cost = self.family.infrastructure_cost(params, max(1, first_alert))
 
             out.append(
                 EpisodeOutcome(
