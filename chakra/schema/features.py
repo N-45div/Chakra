@@ -180,6 +180,28 @@ class VisibilityIndex:
                 ts_list.append(e.ts)
                 view_list.append(view)
 
+    def prior_by_value(
+        self, rail, field_name: str, value, kind: str, as_of: datetime, window: timedelta | None
+    ) -> list["HistoricalView"]:
+        """Views whose `field_name` equals an EXPLICIT value.
+
+        Needed for cross-key questions. "What did this handle receive before it
+        sent?" asks for events whose payee_vpa equals the decision's *payer* vpa,
+        which the same-field lookup cannot express — it would silently answer a
+        different question than the feature's name claims.
+        """
+        if value is None:
+            return []
+        entry = self._groups.get((rail, field_name, value, kind))
+        if entry is None:
+            return []
+        ts_list, view_list = entry
+        lo_ix = 0
+        if window is not None:
+            lo_ix = self._bisect_left(ts_list, as_of - window)
+        hi_ix = self._bisect_left(ts_list, as_of)
+        return [v for v in view_list[lo_ix:hi_ix] if v.available_at < as_of]
+
     def prior(
         self, dec, field_name: str, kind: str, as_of: datetime, window: timedelta | None
     ) -> list["HistoricalView"]:
@@ -548,3 +570,44 @@ def amount_vs_payer_median(ctx, as_of, dec):
 @feature("payer_vpa_velocity_24h", Surface.NETWORK, window=timedelta(hours=24))
 def payer_vpa_velocity_24h(ctx, as_of, dec):
     return float(len(_by_key(ctx, dec, "payer_vpa")))
+
+
+@feature("payer_vpa_fan_out_24h", Surface.NETWORK, window=timedelta(hours=24))
+def payer_vpa_fan_out_24h(ctx, as_of, dec):
+    """Distinct payees this handle has sent to in a day.
+
+    The other half of the mule signature. Fan-in identifies a collector; fan-out
+    identifies the same handle redistributing. A busy individual has neither.
+    """
+    priors = _by_key(ctx, dec, "payer_vpa")
+    payees = {v.payload.get("payee_vpa") for v in priors}
+    payees.add(dec.payload.get("payee_vpa"))
+    payees.discard(None)
+    return float(len(payees))
+
+
+@feature("payer_vpa_received_before_sending", Surface.NETWORK, window=timedelta(hours=24))
+def payer_vpa_received_before_sending(ctx, as_of, dec):
+    """How much this handle RECEIVED in the last day before sending now.
+
+    Pass-through is the defining mule behaviour: money arrives and leaves. A
+    genuine payer spends from a balance built over time; a mule sends what it
+    just received. Deliberately a raw count rather than a ratio, so the model
+    learns the relationship rather than being handed a hand-tuned rule.
+
+    Note the cross-key lookup: this asks for payments whose PAYEE was the handle
+    now paying. The same-field helper would have counted payments to the current
+    payee instead — a different question wearing this one's name.
+    """
+    return float(
+        len(
+            ctx.index.prior_by_value(
+                dec.rail,
+                "payee_vpa",
+                dec.payload.get("payer_vpa"),
+                "attempt",
+                ctx.as_of,
+                ctx.window,
+            )
+        )
+    )
