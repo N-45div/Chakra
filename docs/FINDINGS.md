@@ -166,6 +166,60 @@ worlds.
 
 ---
 
+## F-006 · F5 produces a fitness gradient where F11 did not (preliminary)
+
+**Status: PRELIMINARY.** Three seeds, four generations. The registered contract
+requires 20 seeds and 10 generations, so nothing here is reportable. It is
+recorded because it is the first evidence that the adaptive loop can move at all.
+
+**Setup:** family F5 (UPI authorised push), UPI rail, prevalence 0.42–0.43%,
+frozen thresholds, four-stream loop, two fitness replicates over shared worlds.
+
+### What was observed
+
+| Seed | Episode evasion by generation | Monitor recall, pre-retrain | Monitor recall, post-retrain |
+|---|---|---|---|
+| 1000 | 0.000 → 0.000 → **0.500** → 0.417 | 0.823 → 0.705 → 0.282 → 0.419 | 0.835 → 0.853 → 0.462 → 0.645 |
+| 1001 | 0.000 → 0.000 → **0.167** → 0.167 | 0.853 → 0.700 → 0.381 → 0.556 | 0.853 → 0.800 → 0.881 → 0.500 |
+| 1002 | 0.000 → 0.000 → 0.000 → 0.000 | 0.882 → 0.975 → 0.775 → 0.929 | 0.804 → 0.966 → 0.955 → 0.912 |
+
+- **Non-zero evasion on 2 of 3 seeds.** F11 produced exactly zero on every seed
+  under every configuration tried, including after its action space was widened.
+- **Retraining improved monitor recall on 3 of 3 seeds** (mean post-minus-pre
+  +0.141, +0.136, +0.019), measured on a frozen batch neither model trained on.
+
+### What may and may not be said
+
+Sayable: *in a three-seed, four-generation development pilot, F5 produced
+non-zero episode evasion on two of three seeds, and retraining improved recall
+on the frozen monitor batch on all three.*
+
+Not sayable: that F5 "demonstrates co-evolution", that the loop converges, or
+that any particular evolved parameter is a strategy. Seed 1002 never evaded at
+all, which alone rules out a general claim, and four generations on three seeds
+cannot distinguish a trend from noise.
+
+### Why F5 behaves differently from F11
+
+F11's signature is inseparable from the attack: many unknown instruments,
+concentrated, mostly declining. F5's is not. The payer's VPA, device and PIN are
+genuine and the authentication legitimately succeeds, so instrument novelty,
+device velocity and decline ratio are all silent. What remains is the payer's
+relationship to the payee handle — and in the emitted data, **genuine merchants
+show higher fan-in (9.3) than the mule handle (8.5)**, so the mule signature does
+not separate on its own. That is what leaves the attacker somewhere to hide, and
+it is the precondition for the loop having anything to learn.
+
+### Caveat carried forward
+
+The attacker's levers all trade against yield by construction — fewer victims per
+handle means buying more handles, a smaller take blends in but earns less. Whether
+the loop is finding a genuine trade-off or exploiting a modelling artefact is
+**not established** by this pilot and is the first thing the contract run must
+examine.
+
+---
+
 ## Defects found by guardrails rather than by inspection
 
 Recorded because each was invisible in output and would have quietly

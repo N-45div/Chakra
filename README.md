@@ -10,7 +10,7 @@ An attacker generates fraud, a detector scores it, the attacker reads what slipp
 
 ## Scope
 
-> Thirteen evidence-backed families are mapped. Five — F5, F6, F8, F10 and F11 — are executable, enter the adaptive loop and receive quantitative evaluation. The remaining eight receive no performance claims.
+> Thirteen evidence-backed families are mapped. Two — **F11** (card enumeration) and **F5** (UPI authorised push) — are implemented and enter the adaptive loop. F6, F8 and F10 are specified but **not yet implemented**. The remaining eight are taxonomy only. No family receives a performance claim until the registered 20-seed, 10-generation run.
 
 ## Data disclosure
 
@@ -54,4 +54,4 @@ runs/                      one directory per seeded run
 
 ## Status
 
-Foundations written; implementation not started. `docs/EXPERIMENT_CONTRACT.md` is pre-registered — it fixes what will be measured before results exist, and may not be edited to match an outcome.
+Two families implemented (F11, F5). No reportable result exists: every run so far is a development pilot below the registered 20-seed, 10-generation contract. `docs/EXPERIMENT_CONTRACT.md` is pre-registered — it fixes what will be measured before results exist, and may not be edited to match an outcome.
