@@ -45,9 +45,9 @@ class MetricBundle:
 
     def headline(self) -> str:
         return (
-            f"AUPRC {self.auprc:.3f} @ prevalence {self.prevalence:.4%} "
-            f"(baseline {self.prevalence:.4f}) | "
-            f"recall@0.5%FPR {self.recall_at_0_5pct_fpr:.3f} | "
+            f"AUPRC {self.auprc:.3f} @ prevalence {self.prevalence:.4%} | "
+            f"recall {self.recall_at_0_5pct_fpr:.3f} at a frozen cut realising "
+            f"{self.achieved_fpr_at_0_5pct_cut:.4%} FPR (budget 0.5000%) | "
             f"value-weighted {self.value_weighted_recall:.3f}"
         )
 

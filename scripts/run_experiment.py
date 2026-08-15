@@ -159,7 +159,13 @@ def main() -> int:
     summarise("final recall (pre)", [x.monitor_recall_pre for x in last])
     summarise("final recall (post)", [x.monitor_recall_post for x in last])
     summarise("audit AUPRC", [b.auprc for _, _, b in per_seed])
-    summarise("audit recall@0.5%FPR", [b.recall_at_0_5pct_fpr for _, _, b in per_seed])
+    # Labelled with the FPR the frozen cut ACTUALLY achieved, not the budget it
+    # was aiming at. A tie-safe cut is often well inside the budget, and calling
+    # the result "recall@0.5%FPR" when the realised rate is 0.13% overstates how
+    # much alert volume was spent to get it.
+    summarise("audit recall @frozen cut", [b.recall_at_0_5pct_fpr for _, _, b in per_seed])
+    summarise("  realised FPR at that cut", [b.achieved_fpr_at_0_5pct_cut for _, _, b in per_seed])
+    summarise("  (budget was)", [0.005 for _ in per_seed])
     summarise("audit prevalence", [b.prevalence for _, _, b in per_seed])
 
     print("\nevolved parameters at final generation, per seed:")
