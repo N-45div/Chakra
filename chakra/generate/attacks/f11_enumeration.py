@@ -90,6 +90,17 @@ class F11Enumeration(AttackFamily):
             + C.ENDPOINT_ACQUISITION_COST_INR * (n_end - 1)
         )
 
+    def episode_value_inr(self, authorised_amounts: list[float]) -> float:
+        """A card tester gains the LIVE CARD, not the rupee probe that proved it.
+
+        Summing the probe amounts would value a burst at a few rupees and make
+        every cost dominate it, which is not the economics of carding: the
+        validated card is the sellable asset.
+        """
+        from chakra.generate import calibration as C
+
+        return float(len(authorised_amounts)) * C.VALIDATED_CARD_VALUE_INR
+
     def emit(self, rng, pop, params, start, n_episodes):
         params = AttackParams(params).clamped(self.param_specs)
         events: list[Event] = []

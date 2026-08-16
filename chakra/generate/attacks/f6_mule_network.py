@@ -86,6 +86,15 @@ class F6MuleNetwork(AttackFamily):
             n_mules += max(1, n_mules * fan_out)
         return C.MULE_VPA_ACQUISITION_COST_INR * n_mules
 
+    def episode_value_inr(self, authorised_amounts: list[float]) -> float:
+        """Value successfully moved before the network was flagged.
+
+        Counting hops instead would reward long chains of tiny transfers, which
+        is the opposite of what a launderer wants: the objective is value
+        through the network, not transactions performed.
+        """
+        return float(sum(authorised_amounts))
+
     def emit(self, rng, pop, params, start, n_episodes):
         params = AttackParams(params).clamped(self.param_specs)
         events: list[Event] = []

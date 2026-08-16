@@ -181,3 +181,9 @@ TARGET_BLENDED_FRAUD_PREVALENCE = 0.004  # 0.4%
 # spreading victims across more handles is the only way to suppress it — so a
 # free handle would make low fan-in a costless evasion. ASSUMPTION.
 MULE_VPA_ACQUISITION_COST_INR = 1500.0
+
+# What a confirmed-live card is worth to a card tester. The probe that validates
+# it moves a rupee or two; the asset created is the card itself, which is what
+# gets sold on. Valuing a burst at the probe amounts would make every cost
+# dominate it and misrepresent the economics entirely. ASSUMPTION.
+VALIDATED_CARD_VALUE_INR = 800.0

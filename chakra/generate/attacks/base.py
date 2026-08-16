@@ -78,6 +78,26 @@ class AttackFamily(ABC):
         """
         return 0.0
 
+    def episode_value_inr(self, authorised_amounts: list[float]) -> float:
+        """Rupees the attacker GAINED from the authorised transactions that
+        landed before the first alert.
+
+        Declared per family because the same authorised row means different
+        things. For an authorised-push scam the gain is the money taken from the
+        victim; for a mule network it is the value moved through; for a card
+        tester it is emphatically NOT the one-rupee probe that happened to be
+        approved — it is the resale value of the live card that probe just
+        confirmed.
+
+        This exists because utility previously mixed units: yield was a COUNT of
+        validated cards and cost was RUPEES, bridged by an invented constant.
+        With F6 that broke outright — a four-layer network implies hundreds of
+        mule accounts, so cost dominated any plausible count and the loop would
+        have collapsed to minimum depth rather than finding a trade. Both sides
+        are now rupees and the bridge constant is gone.
+        """
+        return float(sum(authorised_amounts))
+
     def sample_params(self, rng: Rng) -> AttackParams:
         return AttackParams(
             {s.name: rng.uniform(s.low, s.high) for s in self.param_specs}

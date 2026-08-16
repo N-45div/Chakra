@@ -88,7 +88,8 @@ class EpisodeOutcome:
 
     episode_id: str
     caught: bool
-    validated_before_alert: int   # yield the attacker actually keeps
+    validated_before_alert: int   # authorised txns kept (diagnostic)
+    value_gained_inr: float       # what those were WORTH to the attacker
     validated_total: int          # for diagnostics only
     probes_to_alert: int          # how long it survived
     probes: int                   # attempts made = attacker cost
@@ -99,7 +100,7 @@ class EpisodeOutcome:
 class GenerationResult:
     generation: int
     episode_evasion: float       # share of attack EPISODES not caught
-    attacker_yield: float        # mean validated cards per uncaught episode
+    attacker_yield: float        # mean rupees gained per episode before first alert
     monitor_recall_pre: float    # frozen monitor batch, pre-retrain, @target FPR
     monitor_recall_post: float   # same frozen batch, post-retrain, @target FPR
     monitor_fpr_pre: float
@@ -384,6 +385,7 @@ class Loop:
             validated_before = 0
             validated_total = 0
             probe_pos = 0
+            amounts_before: list[float] = []
             for e in ordered:
                 if e.label is None or e.label.value != "fraud":
                     continue
@@ -391,6 +393,7 @@ class Loop:
                     validated_total += 1
                     if probe_pos <= first_alert:
                         validated_before += 1
+                        amounts_before.append(float(e.payload.get("amount_inr", 0.0)))
                 elif e.event_type is EventType.TXN_AUTH_REQUESTED:
                     probe_pos += 1
 
@@ -413,6 +416,7 @@ class Loop:
                     episode_id=str(ep),
                     caught=bool(alert_positions.size),
                     validated_before_alert=validated_before,
+                    value_gained_inr=self.family.episode_value_inr(amounts_before),
                     validated_total=validated_total,
                     probes_to_alert=first_alert,
                     probes=len(idx),
@@ -425,21 +429,20 @@ class Loop:
     def _fitness(outcomes: list[EpisodeOutcome]) -> float:
         """Net attacker utility per episode.
 
-        Value kept = cards validated before the first alert. Cost = the probe
-        value put at risk, discounted so it shapes the trade rather than
-        dominating it. Both terms are needed: yield alone rewards reckless
-        spraying, cost alone rewards doing nothing.
+        Both sides are RUPEES: what the attacker gained before the first alert,
+        minus what the attempt and its assets cost.
+
+        This previously subtracted rupees from a COUNT of validated cards,
+        bridged by an invented 1/5000 constant. That is not a unit error one can
+        tune around — with F6 a four-layer network implies hundreds of mule
+        accounts, so cost swamped any plausible count and the loop would have
+        collapsed to minimum depth and reported it as a strategy. Each family
+        now declares what an episode was worth, and the bridge is gone.
         """
         if not outcomes:
             return 0.0
-        cost_weight = 1.0 / 5000.0  # rupees per unit of validated-card value
         return float(
-            np.mean(
-                [
-                    o.validated_before_alert - cost_weight * o.probe_value_spent
-                    for o in outcomes
-                ]
-            )
+            np.mean([o.value_gained_inr - o.probe_value_spent for o in outcomes])
         )
 
     # -- main --------------------------------------------------------------
@@ -565,7 +568,7 @@ class Loop:
             # yield the attacker keeps, across ALL episodes — not only uncaught
             # ones, since a burst flagged late still banked what came before.
             attacker_yield = (
-                float(np.mean([float(o.validated_before_alert) for o in all_outcomes]))
+                float(np.mean([o.value_gained_inr for o in all_outcomes]))
                 if all_outcomes
                 else 0.0
             )
