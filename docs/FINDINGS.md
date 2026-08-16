@@ -168,15 +168,34 @@ worlds.
 
 ## F-006 · F5 produces a fitness gradient where F11 did not (preliminary)
 
-> **Status: SUSPENDED pending re-measurement.** This observation was made under
-> a fitness function that has since been found broken (see F-007): utility
-> subtracted rupees of cost from a *count* of validated items, bridged by an
-> invented constant. The evasion figures below were produced by that model and
-> must not be cited until the run is repeated under the corrected monetary
-> utility. A first repeat at a smaller configuration showed zero evasion on all
-> three seeds, but changed the world size and replicate count at the same time,
-> so it does not isolate the cause either. A controlled repeat at the identical
-> original configuration is the only thing that settles it.
+> **Status: RETRACTED.** The evasion figures below were an artifact of the broken
+> fitness function described in F-007, not a property of F5.
+>
+> A controlled repeat settled it — identical configuration, identical seeds, the
+> corrected monetary utility as the only change:
+>
+> | Seed | Evasion, broken utility | Evasion, monetary utility |
+> |---|---|---|
+> | 1000 | 0.500 | 0.083 |
+> | 1001 | 0.167 | 0.000 |
+> | 1002 | 0.000 | 0.000 |
+>
+> **Why the broken model manufactured a gradient.** Cost was divided by 5,000
+> before being subtracted from a count, so the attacker's infrastructure spend
+> was effectively free and it optimised almost purely for victims defrauded.
+> Rotating mule VPAs is the evasion lever in this family, and rotation was
+> costing it nothing. Once a handle costs what a handle costs, spreading victims
+> thinly stops paying for itself, fan-in rises, and the detector catches the
+> campaigns.
+>
+> The honest reading is the opposite of the original claim: **when evasion is
+> priced correctly, F5's apparent gradient largely disappears.** What looked like
+> the loop discovering an evasion strategy was the loop exploiting a modelling
+> error that handed it free evasion.
+>
+> This is the third retraction of a claim about attacker learning in this
+> project. It is the first one caught by its own controlled experiment rather
+> than by an external reviewer.
 
 **Status: PRELIMINARY.** Three seeds, four generations. The registered contract
 requires 20 seeds and 10 generations, so nothing here is reportable. It is
@@ -262,8 +281,24 @@ result was ever produced under the broken model and nothing had to be retracted.
 That is the first time in this project a defect of this class was caught before
 rather than after it generated a number.
 
-**Consequence:** F-006 is suspended. Every evasion figure in it was measured
-under the broken utility.
+**Consequence:** F-006 is retracted. The controlled repeat under the corrected
+utility reproduced almost none of its evasion, confirming the figures were an
+artifact of the unit error rather than a property of the family.
+
+**What survives the correction.** Two observations, both weaker and both more
+trustworthy than the retracted claim:
+
+- **Episodes bank real money before being caught.** Yield before the first alert
+  ran ₹1,383–6,502 per generation on seed 1000 even with episode evasion at
+  essentially zero. Binary "caught" was hiding this completely: a campaign that
+  is eventually flagged has usually already extracted value, and the difference
+  between catching it on victim two and victim twenty is the entire point.
+- **Retraining improved monitor recall in 7 of 12 generations**, on a frozen
+  batch neither model trained on. Not the 9 of 12 an earlier configuration
+  suggested, and not consistent enough to call a result.
+
+Neither is reportable. Both are the right size of claim for three seeds and four
+generations.
 
 ---
 
