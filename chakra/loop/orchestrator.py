@@ -158,7 +158,20 @@ class Loop:
         # the four-stream separation the loop depends on. Per-stream and stable
         # across both passes is exactly what is needed.
         attack_seed = self.config.seed + int(rng.stream_id)
-        n_fraud = self._count_fraud_rows(Rng(attack_seed, tag="attacks"), pop, params_list)
+        # Size against a SNAPSHOT. The sizing pass discards its events but not
+        # its ENTITIES, and a family that creates parties while emitting — F6
+        # mints mule accounts typed CONSUMER — leaves them in the live
+        # population. generate_background then emits genuine LEGIT traffic for
+        # accounts that exist only because a throwaway measurement ran, and
+        # _days_for_prevalence divides by the configured consumer count while
+        # sizing a world that now holds more. Measured at the documented config
+        # this put F6 prevalence at ~0.32x of target, failing the project's own
+        # registered band on every seed, and gave the injected network's mule
+        # handles pre-existing genuine history — nullifying the very graph
+        # features F6 exists to test.
+        n_fraud = self._count_fraud_rows(
+            Rng(attack_seed, tag="attacks"), pop.snapshot(), params_list
+        )
         days = self._days_for_prevalence(n_fraud)
 
         log = generate_background(
@@ -303,7 +316,9 @@ class Loop:
         )
         # size for ONE candidate's episodes, since that is what gets injected
         per_candidate = max(
-            1, self._count_fraud_rows(rng.spawn("sizing"), pop, params_list) // max(1, len(params_list))
+            1,
+            self._count_fraud_rows(rng.spawn("sizing"), pop.snapshot(), params_list)
+            // max(1, len(params_list)),
         )
         days = self._days_for_prevalence(per_candidate)
         log = generate_background(
