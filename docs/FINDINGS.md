@@ -168,6 +168,16 @@ worlds.
 
 ## F-006 · F5 produces a fitness gradient where F11 did not (preliminary)
 
+> **Status: SUSPENDED pending re-measurement.** This observation was made under
+> a fitness function that has since been found broken (see F-007): utility
+> subtracted rupees of cost from a *count* of validated items, bridged by an
+> invented constant. The evasion figures below were produced by that model and
+> must not be cited until the run is repeated under the corrected monetary
+> utility. A first repeat at a smaller configuration showed zero evasion on all
+> three seeds, but changed the world size and replicate count at the same time,
+> so it does not isolate the cause either. A controlled repeat at the identical
+> original configuration is the only thing that settles it.
+
 **Status: PRELIMINARY.** Three seeds, four generations. The registered contract
 requires 20 seeds and 10 generations, so nothing here is reportable. It is
 recorded because it is the first evidence that the adaptive loop can move at all.
@@ -217,6 +227,43 @@ handle means buying more handles, a smaller take blends in but earns less. Wheth
 the loop is finding a genuine trade-off or exploiting a modelling artefact is
 **not established** by this pilot and is the first thing the contract run must
 examine.
+
+---
+
+## F-007 · Attacker utility mixed units (fixed before it produced a result)
+
+Fitness was:
+
+```
+validated_before_alert  -  (1/5000) * probe_value_spent
+```
+
+The first term is a **count** of validated items. The second is **rupees**. The
+`1/5000` was an invented bridge, so the whole expression had no consistent unit
+and its behaviour depended entirely on a constant chosen by feel.
+
+F6 is what exposed it. Mule-network cost compounds per layer: four layers with
+fan-out eight implies over seven hundred mule accounts, roughly ₹1.09M, which
+against a count of perhaps twenty hops produces a penalty two orders of magnitude
+larger than any achievable yield. The loop would have driven straight to minimum
+depth and minimum fan-out, sat in that corner, and the corner would have looked
+exactly like a discovered laundering strategy.
+
+**Fixed:** each family declares what an episode was worth in rupees, because the
+same authorised row means different things. A card tester gains the live card,
+not the one-rupee probe that proved it. An authorised-push scam gains the money
+taken from the victim. A mule network gains the value moved through, not the hop
+count — counting hops would reward long chains of tiny transfers, the opposite of
+a launderer's objective. Utility is now value minus cost, both rupees, and the
+bridge constant is deleted rather than retuned.
+
+**Found by reading, not by running**, while tooling was unavailable — so no
+result was ever produced under the broken model and nothing had to be retracted.
+That is the first time in this project a defect of this class was caught before
+rather than after it generated a number.
+
+**Consequence:** F-006 is suspended. Every evasion figure in it was measured
+under the broken utility.
 
 ---
 
