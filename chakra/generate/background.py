@@ -53,6 +53,16 @@ def generate_background(
 
     horizon = start + timedelta(days=days)
 
+    # Place in-window merchant arrivals across the ACTUAL world length. The
+    # population builder cannot know it — world length is derived from the
+    # prevalence target — so it marks arrivals with a fractional offset and the
+    # generator stretches them here. This is what keeps first-time payees
+    # available at a steady rate however long the world runs.
+    for m in merchants:
+        if m.created_at >= start:
+            frac = min(1.0, max(0.0, (m.created_at - start).total_seconds() / 86400.0))
+            m.created_at = start + timedelta(days=frac * days * 0.9)
+
     for cons in consumers:
         # A small circle of people this consumer actually pays. Genuine P2P is
         # repeated payments to known contacts, which is exactly the baseline a
@@ -61,6 +71,9 @@ def generate_background(
             p for p in _favourite_merchants(rng, consumers, k=rng.integers(2, 6))
             if p.party_id != cons.party_id
         ]
+        # Payees this consumer has already paid. Novelty is drawn against this
+        # at a constant RATE, so it does not decay as the world lengthens.
+        discovered: set[str] = set()
         vpas = [i for i in pop.instruments_of(cons.party_id) if i.kind is InstrumentKind.VPA]
         cards = [i for i in pop.instruments_of(cons.party_id) if i.kind is InstrumentKind.CARD]
         device = pop.device_of(cons.party_id)
@@ -104,10 +117,17 @@ def generate_background(
             peers = peer_pool
             if rail == "card":
                 card = second_card if (second_card and when >= second_card_from) else cards[0]
-                _emit_card_txn(log, rng, cons, card, favourites, when, device)
+                _emit_card_txn(
+                    log, rng, cons, card, favourites, when, device,
+                    discovered=discovered, all_merchants=merchants,
+                )
             else:
                 vpa = second_vpa if (second_vpa and when >= second_vpa_from) else vpas[0]
-                _emit_upi_txn(log, rng, cons, vpa, favourites, when, device, peers=peers, pop=pop)
+                _emit_upi_txn(
+                    log, rng, cons, vpa, favourites, when, device,
+                    peers=peers, pop=pop, discovered=discovered,
+                    all_merchants=merchants, all_peers=consumers,
+                )
 
     return log
 
@@ -158,6 +178,38 @@ def _favourite_merchants(rng: Rng, merchants: list, k: int) -> list:
     return [merchants[i] for i in idx]
 
 
+
+def _pick_payee(rng, circle, discovered, universe, when):
+    """Choose who this genuine transaction pays.
+
+    With probability NEW_PAYEE_DISCOVERY_RATE the consumer pays someone they
+    have never paid before, drawn from everyone who EXISTS by `when`. Otherwise
+    they pay from their established circle.
+
+    This is the fix for a confirmed artifact. Payee circles used to be drawn
+    once and never grow, so genuine novelty was a fixed per-lifetime budget
+    while world length scales with 1/prevalence — pushing prevalence to 0.4%
+    stretched the world past a year and the genuine novelty RATE decayed toward
+    zero, while every fraud row stayed novel by construction. Detector AUC then
+    rose from 0.941 to 0.977 purely because the world got longer. Novelty has to
+    be a rate, not a budget.
+    """
+    fresh = rng.uniform(0, 1) < C.NEW_PAYEE_DISCOVERY_RATE
+    if fresh:
+        available = [
+            m for m in universe
+            if getattr(m, "created_at", when) <= when and m.party_id not in discovered
+        ]
+        if available:
+            chosen = available[rng.integers(0, len(available))]
+            discovered.add(chosen.party_id)
+            return chosen
+    if circle:
+        chosen = rng.choice(circle)
+        discovered.add(chosen.party_id)
+        return chosen
+    return None
+
 def _approved(rng: Rng) -> bool:
     return rng.uniform(0, 1) < C.BASELINE_APPROVAL_RATE
 
@@ -192,7 +244,8 @@ def _payee_vpa_of(pop, party_id: str) -> str | None:
     return None
 
 
-def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device, peers=None, pop=None):
+def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device, peers=None, pop=None,
+                  discovered=None, all_merchants=None, all_peers=None):
     amount = rng.amount_from_bands(C.UPI_AMOUNT_BANDS)
     device_id = device.device_id if device else None
     mode, is_collect = _upi_mode(rng)
@@ -203,9 +256,11 @@ def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device, peers=None, 
     # payee, which only means anything if genuine P2P payees are people the payer
     # already knows.
     if mode == "p2p_push" and peers:
-        merch = rng.choice(peers)
+        merch = _pick_payee(rng, peers, discovered, all_peers or peers, when)
     else:
-        merch = rng.choice(merchants)
+        merch = _pick_payee(rng, merchants, discovered, all_merchants or merchants, when)
+    if merch is None:
+        return
     payee_vpa = _payee_vpa_of(pop, merch.party_id) if pop else None
 
     payload = {
@@ -281,8 +336,14 @@ def _emit_upi_txn(log, rng, consumer, vpa, merchants, when, device, peers=None, 
     _emit_outcome(log, rng, auth, consumer, Rail.UPI, after=auth_ts, device_id=device_id)
 
 
-def _emit_card_txn(log, rng, consumer, card, merchants, when, device):
-    merch = rng.choice(merchants)
+def _emit_card_txn(log, rng, consumer, card, merchants, when, device,
+                   discovered=None, all_merchants=None):
+    merch = _pick_payee(
+        rng, merchants, discovered if discovered is not None else set(),
+        all_merchants or merchants, when,
+    )
+    if merch is None:
+        return
     amount = rng.amount_from_bands(C.CARD_AMOUNT_BANDS)
     device_id = device.device_id if device else None
 

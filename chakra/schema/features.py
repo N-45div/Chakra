@@ -282,7 +282,13 @@ class DecisionView:
         )
 
 
-def build_matrix(log, surface: Surface, rail=None, only_episodes: set | None = None):
+def build_matrix(
+    log,
+    surface: Surface,
+    rail=None,
+    only_episodes: set | None = None,
+    rows_from: datetime | None = None,
+):
     """Build (X, y, meta) for every decision event on `rail`, using only
     information visible to `surface` strictly before each decision.
 
@@ -322,6 +328,19 @@ def build_matrix(log, surface: Surface, rail=None, only_episodes: set | None = N
         # own rows are needed and building tens of thousands of genuine rows per
         # candidate per replicate dominates the runtime.
         if only_episodes is not None and dec.episode_id not in only_episodes:
+            continue
+        # `rows_from` makes the warm-up period HISTORY ONLY: its events populate
+        # the index but produce no rows.
+        #
+        # Without it, evaluation begins on a blank history, so early rows see a
+        # payee nobody has paid yet and novelty starts near 1.0 and decays. World
+        # length is derived from the prevalence target, so the decay curve — and
+        # every feature built on it — moved whenever prevalence moved. An audit
+        # measured detector AUC climbing 0.899 -> 0.985 with the attacks held
+        # identical and only the world lengthened. Starting evaluation on an
+        # already-populated history puts novelty at its steady-state rate from
+        # the first scored row.
+        if rows_from is not None and dec.ts < rows_from:
             continue
         # The decision is made when the transaction is initiated. Every index
         # lookup enforces available_at < as_of, so the decision event itself and

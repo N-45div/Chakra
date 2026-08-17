@@ -85,8 +85,18 @@ def build_population(
                 )
             )
 
-    for _ in range(n_merchants):
-        created = world_start - timedelta(days=rng.integers(60, 2500))
+    # A share of merchants OPEN DURING the window rather than pre-existing.
+    # A closed merchant pool cannot supply first-time payees indefinitely, which
+    # is what made genuine novelty a fixed budget that decayed as the world
+    # lengthened. `created_at` is respected by the background generator, so a
+    # merchant cannot be paid before it exists.
+    for m_ix in range(n_merchants):
+        arrives_during = (m_ix / max(1, n_merchants)) < C.MERCHANT_ARRIVAL_SHARE
+        if arrives_during:
+            # placed later against the actual world length by the background
+            created = world_start + timedelta(days=rng.uniform(0.0, 1.0))
+        else:
+            created = world_start - timedelta(days=rng.integers(60, 2500))
         m = pop.add_party(
             Party(
                 party_id=rng.uid("merch"),

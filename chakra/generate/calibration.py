@@ -187,3 +187,30 @@ MULE_VPA_ACQUISITION_COST_INR = 1500.0
 # gets sold on. Valuing a burst at the probe amounts would make every cost
 # dominate it and misrepresent the economics entirely. ASSUMPTION.
 VALIDATED_CARD_VALUE_INR = 800.0
+
+# Rate at which genuine consumers pay someone they have never paid before.
+#
+# This exists because the genuine payee population used to be CLOSED: each
+# consumer's circle of merchants and peers was drawn once at world build and
+# never grew, so genuine novelty was a fixed per-lifetime budget of a few
+# events. World LENGTH, meanwhile, is derived from the prevalence target — the
+# lower the prevalence, the longer the world must run to dilute the attacks.
+#
+# The two together produce a pure artifact. Driving prevalence to 0.4% stretches
+# the world past a year, so the genuine novelty RATE decays toward zero while
+# every fraud row is novel by construction. An adversarial audit measured the
+# consequence directly: holding the attacks identical and varying only
+# prevalence, detector AUC climbed from 0.941 to 0.977 — the model looking better
+# purely because the world got longer.
+#
+# INSTRUMENT_CHURN_RATE did not help: it is a per-lifetime coin flip, so it too
+# evaporates as the world lengthens. Novelty has to be a RATE.
+#
+# ASSUMPTION: share of genuine transactions that go to a first-time payee. Real
+# consumers keep discovering shops, services and people indefinitely.
+NEW_PAYEE_DISCOVERY_RATE = 0.06
+
+# Share of merchants that open DURING the simulated window rather than existing
+# before it. A closed merchant pool cannot supply first-time payees forever.
+# ASSUMPTION.
+MERCHANT_ARRIVAL_SHARE = 0.35

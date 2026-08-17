@@ -124,6 +124,8 @@ class Loop:
         self.detector = Detector(DetectorConfig(random_state=config.seed))
         self.results: list[GenerationResult] = []
         self._world_start = datetime(2026, 2, 1)
+        # set per stream once the world length is known
+        self._eval_from: datetime | None = None
         self._audit = None
 
     # -- stream construction ----------------------------------------------
@@ -173,6 +175,7 @@ class Loop:
             Rng(attack_seed, tag="attacks"), pop.snapshot(), params_list
         )
         days = self._days_for_prevalence(n_fraud)
+        self._eval_from = self._world_start + timedelta(days=C.WARMUP_FRACTION * days)
 
         log = generate_background(
             rng,
@@ -212,7 +215,15 @@ class Loop:
         per_consumer_day_on_rail = max(
             0.01, C.CONSUMER_DAILY_TXN_MEAN * rail_share * participation
         )
-        return max(1.0, need_legit_on_rail / (self.config.n_consumers * per_consumer_day_on_rail))
+        days_of_evaluation = need_legit_on_rail / (
+            self.config.n_consumers * per_consumer_day_on_rail
+        )
+        # Only the post-warm-up portion of the world contributes EVALUATION rows
+        # — warm-up traffic is history, not data. Sizing the world as if all of
+        # it counted leaves too few genuine rows in the evaluated window and
+        # pushes prevalence up by 1/(1 - WARMUP_FRACTION), measured at 1.58x.
+        total_days = days_of_evaluation / max(0.05, 1.0 - C.WARMUP_FRACTION)
+        return max(1.0, total_days)
 
     def _schedule_attacks(self, rng: Rng, place_rng: Rng, pop, params_list, days: float):
         """Place attacks after warm-up and spread them across the interval.
@@ -238,11 +249,19 @@ class Loop:
             )
         return events
 
-    def _matrix(self, log: EventLog):
+    def _matrix(self, log: EventLog, rows_from: datetime | None = None):
         """Rows are scoped to the family's own rail. A card-fraud detector must
         not be trained, calibrated or audited against UPI negatives it will
-        never be asked to score."""
-        return build_matrix(log, self.config.surface, rail=self.config.rail)
+        never be asked to score.
+
+        `rows_from` defaults to the end of the warm-up, so warm-up traffic is
+        history rather than data — see build_matrix.
+        """
+        if rows_from is None:
+            rows_from = self._eval_from
+        return build_matrix(
+            log, self.config.surface, rail=self.config.rail, rows_from=rows_from
+        )
 
     def _calibration_scores(self, rng: Rng, params_list: list[AttackParams]):
         """Scores and labels on a dedicated calibration stream."""
