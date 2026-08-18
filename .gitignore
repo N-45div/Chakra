@@ -9,3 +9,4 @@ runs/*/
 kaggle.json
 chakra.egg-info/
 *.egg-info/
+data/raw/
