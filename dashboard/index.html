@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chakra — adversarial fraud range</title>
+<style>
+:root{color-scheme:light;--bg:#f4f5f7;--surface:#fcfcfb;--ink:#101418;--ink2:#3d4550;
+--muted:#6b7480;--line:#dfe3e8;--pre:#2a78d6;--post:#eb6834;--fpr:#1baf7a;
+--bad:#d03b3b;--good:#0ca30c}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1013;
+--surface:#1a1a19;--ink:#f2f4f6;--ink2:#c3c8d0;--muted:#8c95a1;--line:#2b3038;
+--pre:#3987e5;--post:#d95926;--fpr:#199e70;--bad:#e06a6a;--good:#3cb85c}}
+:root[data-theme="dark"]{--bg:#0e1013;--surface:#1a1a19;--ink:#f2f4f6;--ink2:#c3c8d0;
+--muted:#8c95a1;--line:#2b3038;--pre:#3987e5;--post:#d95926;--fpr:#199e70;
+--bad:#e06a6a;--good:#3cb85c}
+*{box-sizing:border-box}
+body{margin:0;padding:0 20px 72px;background:var(--bg);color:var(--ink);
+font:16px/1.6 "Segoe UI",system-ui,-apple-system,sans-serif}
+.wrap{max-width:1000px;margin:0 auto}
+header.top{padding:44px 0 22px;border-bottom:1px solid var(--line);margin-bottom:26px}
+h1{margin:0;font-size:2rem;letter-spacing:-.01em}
+h3{margin:0;font-size:1.08rem}
+.lede{color:var(--ink2);max-width:64ch;margin:.6rem 0 0}
+.banner{margin:18px 0 0;padding:12px 15px;border-left:3px solid var(--bad);
+background:var(--surface);border-radius:0 4px 4px 0;font-size:.92rem;color:var(--ink2)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;
+padding:20px 22px;margin:0 0 18px}
+.panel-head{display:flex;justify-content:space-between;gap:22px;align-items:flex-start;
+margin-bottom:8px;flex-wrap:wrap}
+.sub{color:var(--muted);font-size:.86rem;margin:.25rem 0 0}
+.stat{text-align:right}
+.stat-n{display:block;font-size:1.5rem;font-weight:600;font-variant-numeric:tabular-nums}
+.stat-bad .stat-n{color:var(--bad)}
+.stat-l{display:block;font-size:.76rem;color:var(--muted);max-width:20ch}
+.chart{width:100%;height:auto;display:block;margin:6px 0 4px;overflow:visible}
+.grid{stroke:var(--line);stroke-width:1}
+.axis{fill:var(--muted);font-size:10px}
+.axis-title{fill:var(--muted);font-size:10px}
+.ln{fill:none;stroke-width:2}
+.ln-pre{stroke:var(--pre)}.ln-post{stroke:var(--post)}.ln-fpr{stroke:var(--fpr)}
+.pt-pre{fill:var(--pre)}.pt-post{fill:var(--post)}.pt-fpr{fill:var(--fpr)}
+.pt{stroke:var(--surface);stroke-width:2}
+.endlbl{fill:var(--ink2);font-size:11px}
+.bar-pre{fill:var(--pre)}.bar-post{fill:var(--post)}.bar-fpr{fill:var(--fpr)}
+.barlbl{fill:var(--ink2);font-size:12px}
+.barval{fill:var(--ink);font-size:12px;font-variant-numeric:tabular-nums}
+.note{color:var(--ink2);font-size:.88rem;margin:.5rem 0 0}
+.empty{color:var(--muted);font-style:italic}
+details{margin-top:12px}
+summary{cursor:pointer;color:var(--muted);font-size:.85rem}
+table{border-collapse:collapse;width:100%;margin-top:10px;font-size:.82rem}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);
+font-variant-numeric:tabular-nums}
+th{color:var(--muted);font-weight:500}
+.ledger{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:12px}
+.led{border-left:3px solid var(--bad);padding:10px 14px;background:var(--bg);border-radius:0 4px 4px 0}
+.led-caught{border-left-color:var(--good)}
+.led-h{display:flex;gap:10px;align-items:center}
+.led-h code{font-size:.8rem;color:var(--muted)}
+.tag{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.led-claim{margin:.4rem 0 .2rem;font-weight:600}
+.led-why{margin:0;color:var(--ink2);font-size:.88rem}
+.loopdiag{width:100%;height:auto;color:var(--muted)}
+.dg-a{fill:none;stroke:var(--post)}.dg-d{fill:none;stroke:var(--pre)}
+.dg-n{fill:none;stroke:var(--line)}
+.dg-t{fill:var(--ink);font-size:13px;font-weight:600}
+.dg-s{fill:var(--muted);font-size:10px}
+.dg-l{stroke:var(--muted);fill:none;stroke-width:1.4}
+.dg-f{stroke:var(--post);fill:none;stroke-width:1.6;stroke-dasharray:5 4}
+.dg-fl{fill:var(--post);font-size:10px}
+footer{color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);
+padding-top:18px;margin-top:26px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head>
+<body><div class="wrap">
+<header class="top">
+  <h1>Chakra</h1>
+  <p class="lede">A closed-loop adversarial fraud range for Indian payment rails. An attacker
+  generates fraud, a detector scores it, the attacker mutates on what slipped through, and the
+  detector retrains — with the improvement measured on batches neither of them trained on.</p>
+  <div class="banner"><strong>Development pilot, not a submission result.</strong>
+  The registered experiment contract specifies 20 seeds and 10 generations; everything here is
+  below that. No figure on this page is a competition claim.</div>
+</header>
+
+<section class="panel">
+  <h3>The loop</h3>
+  <p class="sub">The red path is the part that makes this adversarial: the attacker consuming its
+  own failures. Everything else is standard.</p>
+  
+<svg viewBox="0 0 760 210" role="img" class="loopdiag">
+  <rect class="dg-a" x="8" y="70" width="150" height="58" rx="4"/>
+  <text class="dg-t" x="24" y="94">Attack families</text>
+  <text class="dg-s" x="24" y="112">parameterised</text>
+  <rect class="dg-a" x="198" y="70" width="150" height="58" rx="4"/>
+  <text class="dg-t" x="214" y="94">Generator</text>
+  <text class="dg-s" x="214" y="112">raw events only</text>
+  <rect class="dg-d" x="388" y="70" width="150" height="58" rx="4"/>
+  <text class="dg-t" x="404" y="94">Detector</text>
+  <text class="dg-s" x="404" y="112">network surface</text>
+  <rect class="dg-n" x="578" y="42" width="170" height="50" rx="4"/>
+  <text class="dg-t" x="594" y="63">Caught</text>
+  <text class="dg-s" x="594" y="80">&#8594; training stream</text>
+  <rect class="dg-n" x="578" y="112" width="170" height="50" rx="4"/>
+  <text class="dg-t" x="594" y="133">Missed</text>
+  <text class="dg-s" x="594" y="150">&#8594; attacker mutates</text>
+  <path class="dg-l" d="M158 99 H192" marker-end="url(#ah)"/>
+  <path class="dg-l" d="M348 99 H382" marker-end="url(#ah)"/>
+  <path class="dg-l" d="M538 99 L558 99 L558 67 L572 67" marker-end="url(#ah)"/>
+  <path class="dg-l" d="M538 99 L558 99 L558 137 L572 137" marker-end="url(#ah)"/>
+  <path class="dg-f" d="M748 162 L748 190 L83 190 L83 134" marker-end="url(#ahr)"/>
+  <text class="dg-fl" x="300" y="204">evasion &#8594; mutate &#8594; next generation</text>
+  <defs>
+    <marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0 0 L7 3.5 L0 7 z" fill="currentColor"/></marker>
+    <marker id="ahr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0 0 L7 3.5 L0 7 z" fill="#eb6834"/></marker>
+  </defs>
+</svg>
+</section>
+
+<section class='panel'><p class='empty'>No loop runs found in runs/.</p></section>
+
+    <section class="panel">
+      <header class="panel-head">
+        <div>
+          <h3>Lane A · synthetic-to-real utility on real card data</h3>
+          <p class="sub">ULB creditcard (real, chronological split) · 199,364 dev / 85,443 locked test ·
+             test prevalence 0.1264%</p>
+        </div>
+        <div class="stat stat-bad">
+          <span class="stat-n">+0.733</span>
+          <span class="stat-l">AUPRC lost by training on synthetic</span>
+        </div>
+      </header>
+      <svg viewBox="0 0 560 126" role="img" class="chart"><text class="barlbl" x="158" y="26" text-anchor="end">TRTR — trained on REAL</text><rect class="bar bar-pre" x="168" y="12" width="318.0" height="20" rx="4"/><text class="barval" x="494.0" y="26">0.7770</text><text class="barlbl" x="158" y="58" text-anchor="end">TSTR — trained on SYNTHETIC</text><rect class="bar bar-post" x="168" y="44" width="17.9" height="20" rx="4"/><text class="barval" x="193.9" y="58">0.0438</text><text class="barlbl" x="158" y="90" text-anchor="end">random baseline (prevalence)</text><rect class="bar bar-fpr" x="168" y="76" width="2.0" height="20" rx="4"/><text class="barval" x="178.0" y="90">0.0013</text></svg>
+      <p class="note">
+        Real-vs-synthetic discriminator AUC <strong>0.998</strong> — a classifier
+        separates our synthetic rows from real ones almost perfectly, so the Lane A generator has
+        <strong>low fidelity</strong>. Reported because it is measured, not because it flatters.
+        Class weighting costs <strong>+0.687</strong> AUPRC
+        on this real dataset while being near-neutral on our synthetic families — which is precisely
+        why a synthetic-only pipeline can mislead.
+      </p>
+      <details><summary>Table view — every plotted value</summary><table><thead><tr><th>measure</th><th>TRTR (real)</th><th>TSTR (synthetic)</th></tr></thead><tbody><tr><td>AUPRC</td><td>0.7770</td><td>0.0438</td></tr><tr><td>AUC</td><td>0.9838</td><td>0.5074</td></tr><tr><td>recall @0.5% FPR</td><td>0.8426</td><td>0.2870</td></tr><tr><td>AUPRC with class weighting</td><td>0.0898</td><td>0.0371</td></tr></tbody></table></details>
+    </section>
+
+    <section class="panel">
+      <h3>Honesty ledger</h3>
+      <p class="sub">Claims this system made, then withdrew, with the mechanism that caused each.
+         Kept on the dashboard rather than buried in a repository file.</p>
+      <ul class="ledger"><li class="led led-retracted">
+          <div class="led-h"><code>F-002</code><span class="tag">retracted</span></div>
+          <p class="led-claim">Attacker &ldquo;rediscovered the real-world evasion playbook&rdquo;</p>
+          <p class="led-why">Read from one seed. A second seed reproduced none of it, and with evasion at zero the fitness landscape was flat — the parameters were drifting at random.</p>
+        </li><li class="led led-retracted">
+          <div class="led-h"><code>F-003</code><span class="tag">retracted</span></div>
+          <p class="led-claim">&ldquo;Probe amount evolved upward on every seed&rdquo;</p>
+          <p class="led-why">The saved artifacts show the value identical from generation 0 to 5 on all five seeds. Those were the initial random draws; I compared them against the bound instead of against their own generation-0 values.</p>
+        </li><li class="led led-retracted">
+          <div class="led-h"><code>F-006</code><span class="tag">retracted</span></div>
+          <p class="led-claim">F5 produces a fitness gradient</p>
+          <p class="led-why">A controlled repeat — same config, same seeds, corrected utility — cut evasion from 0.500/0.167 to 0.083/0.000. The gradient was a unit error that made evasion free, not a property of the family.</p>
+        </li><li class="led led-caught">
+          <div class="led-h"><code>F-007</code><span class="tag">fixed before it produced a result</span></div>
+          <p class="led-claim">Attacker utility mixed units</p>
+          <p class="led-why">Cost in rupees was subtracted from a count of validated cards via an invented constant. Found by reading the code while tooling was unavailable, so no number was ever published from the broken model.</p>
+        </li></ul>
+    </section>
+
+<footer>Every number is read from a seeded run artifact in <code>runs/</code>. Panels with no
+artifact say so rather than showing a placeholder.</footer>
+</div></body></html>
