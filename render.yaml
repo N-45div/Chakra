@@ -1,0 +1,26 @@
+# Render blueprint for the Chakra dashboard.
+#
+# A STATIC site, deliberately. The dashboard is a single self-contained HTML
+# file generated from the JSON run artifacts committed under runs/, so there is
+# no server to keep warm, nothing to cold-start, and no runtime that can fail
+# while a judge is looking at it. Free-tier web services sleep; a static site
+# does not.
+#
+# The build regenerates the page from the artifacts rather than serving a
+# committed HTML blob, so the deployed page can never drift from the data in
+# the repository.
+
+services:
+  - type: web
+    name: chakra-dashboard
+    runtime: static
+    buildCommand: python scripts/build_dashboard.py
+    staticPublishPath: ./dashboard
+    pullRequestPreviewsEnabled: false
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer

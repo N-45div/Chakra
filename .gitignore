@@ -3,7 +3,12 @@ data/interim/
 __pycache__/
 *.pyc
 .venv/
-runs/*/
+# Run artifacts: the JSON summaries ARE the dashboard's data source and must
+# ship with the repo so a static deploy can render without re-running the
+# experiment. The parquet evidence files are large and stay local; the
+# manifest carries their digest, so the seal is still verifiable.
+runs/**/*.parquet
+runs/_batch.log
 !runs/.gitkeep
 .ipynb_checkpoints/
 kaggle.json
