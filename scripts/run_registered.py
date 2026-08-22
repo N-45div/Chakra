@@ -38,13 +38,23 @@ GENERATIONS = 10
 
 
 def _run_done(out_dir: Path) -> bool:
-    """Complete means: audit scored AND committed, not merely claimed."""
+    """Complete means a REGISTERED run: audit scored AND committed, with the
+    full ten-generation series.
+
+    Plain 'has an audit_score.json' was not enough — it skipped registered jobs
+    whose (family, seed) had any older artifact at all: 2-generation smoke runs
+    and 6-generation development pilots counted as complete and four registered
+    jobs were silently never executed. A run is only a stand-in for this batch
+    when its generations.json is the registered length.
+    """
     score = out_dir / "audit_score.json"
-    if not score.exists():
+    gens = out_dir / "generations.json"
+    if not score.exists() or not gens.exists():
         return False
     try:
         meta = json.loads(score.read_text(encoding="utf-8"))
-        return bool(meta.get("metrics"))
+        series = json.loads(gens.read_text(encoding="utf-8"))
+        return bool(meta.get("metrics")) and len(series) >= GENERATIONS
     except Exception:
         return False
 

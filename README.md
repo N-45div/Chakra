@@ -59,6 +59,34 @@ python scripts/run_lofo.py                 # zero-shot protocol
 
 The current aggregate results live in the generated dashboard and in `runs/`; the honesty ledger in [`docs/FINDINGS.md`](docs/FINDINGS.md) records the claims this project withdrew before any of them reached a submission.
 
+## Web prototype
+
+The challenge requires a working web prototype with a presentable UI. That is
+[`dashboard/index.html`](dashboard/index.html) — a single self-contained static
+page generated from the run artifacts (`python scripts/build_dashboard.py`),
+deployed statically via `render.yaml`. It contains the full report (loop
+mechanics, per-family panels, Lane A, LOFO, taxonomy, honesty ledger) plus an
+interactive generation scrubber that replays the recorded runs — labelled
+REPLAY per the contract, aggregate-first so no seed is selected for
+presentation.
+
+Marked as future work, deliberately: a live in-browser run mode (running the
+loop on demand behind a small API), episode-level drill-down into the sealed
+audit streams, and the full-telemetry ablation panels. The current page never
+invents a number and never needs a server — the two properties that matter
+most on demo day.
+
+## Research extension path
+
+The mapped tier of the taxonomy (F1 deepfake impersonation, F2 synthetic
+onboarding, F3 voice-clone vishing, F4 industrial phishing, F7 fake-merchant
+acquiring, F9 fabricated disputes, F12 AePS biometric fraud, F13 personalised
+investment scams) is specified, not simulated. Each entry states the event
+schema and features it would need; implementing any of them is a
+well-bounded extension of the same loop. Zero-shot across rails is likewise
+left as future work because a cross-rail model's baseline is meaningless
+under the rail-scoping rule (FINDINGS F-004).
+
 ## Layout
 
 ```
