@@ -420,6 +420,7 @@ class Loop:
             validated_total = 0
             probe_pos = 0
             amounts_before: list[float] = []
+            payloads_before: list[dict] = []
             for e in ordered:
                 if e.label is None or e.label.value != "fraud":
                     continue
@@ -428,6 +429,7 @@ class Loop:
                     if probe_pos <= first_alert:
                         validated_before += 1
                         amounts_before.append(float(e.payload.get("amount_inr", 0.0)))
+                        payloads_before.append(dict(e.payload))
                 elif e.event_type is EventType.TXN_AUTH_REQUESTED:
                     probe_pos += 1
 
@@ -450,7 +452,9 @@ class Loop:
                     episode_id=str(ep),
                     caught=bool(alert_positions.size),
                     validated_before_alert=validated_before,
-                    value_gained_inr=self.family.episode_value_inr(amounts_before),
+                    value_gained_inr=self.family.episode_value_inr(
+                        amounts_before, payloads_before
+                    ),
                     validated_total=validated_total,
                     probes_to_alert=first_alert,
                     probes=len(idx),

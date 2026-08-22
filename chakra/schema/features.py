@@ -110,6 +110,28 @@ _REQUEST_TIME_FIELDS = (
     "bin",
     "cvv_result",
     "avs_result",
+    # Agentic-rail mandate protocol fields. These ride inside the signed
+    # payment presentation on every agentic row — genuine or fraudulent — so
+    # they are request-time observable exactly like an amount. Deliberately
+    # ABSENT from this list: any attack-internal bookkeeping (F8's spend
+    # "phase"), which is the attacker's own plan rather than something the
+    # network could observe.
+    "agent_id",
+    "principal_id",
+    "cart_total_inr",
+    "item_count",
+)
+
+# Grouping keys the network can associate a decision with. agent_id joins them:
+# an authorisation request on the agentic rail names the assistant that made
+# it, and fan-out across principals is only measurable if history groups by it.
+_KEY_FIELDS = (
+    "device_id",
+    "counterparty_id",
+    "instrument_id",
+    "payee_vpa",
+    "payer_vpa",
+    "agent_id",
 )
 
 
@@ -630,3 +652,58 @@ def payer_vpa_received_before_sending(ctx, as_of, dec):
             )
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# Agentic-rail features.
+#
+# On this rail the deterministic policy layer — signature validation and
+# Intent↔Cart mandate consistency (EXPERIMENT_CONTRACT §4) — passes for every
+# row by construction: the attacker's manipulation happens UPSTREAM of the
+# declared intent, so what is signed is internally consistent. The model's job
+# is the behavioural residue after those checks pass, which is why every feature
+# here counts behaviour around the agent identity rather than checking the
+# mandate.
+# ---------------------------------------------------------------------------
+
+@feature("agent_velocity_24h", Surface.NETWORK, window=timedelta(hours=24))
+def agent_velocity_24h(ctx, as_of, dec):
+    """Authorisation attempts made by this agent identity in a day.
+
+    A personal assistant shops for one household; a compromised or malicious
+    one works a queue of victims. Volume alone cannot condemn an agent —
+    legitimate comparison-shopping assistants exist — so it is informative
+    rather than decisive, which is what makes it learnable instead of
+    hard-codable.
+    """
+    return float(len(_by_key(ctx, dec, "agent_id")))
+
+
+@feature("agent_distinct_principals_24h", Surface.NETWORK, window=timedelta(hours=24))
+def agent_distinct_principals_24h(ctx, as_of, dec):
+    """Distinct principals this agent has transacted for in a day.
+
+    The agentic analogue of mule fan-in, and F10's central trade: one fake
+    agent serving many unrelated victims is efficient and loud; rotating agent
+    identities suppresses it, and each identity costs real money to register
+    (see AGENT_ACQUISITION_COST_INR). The same trade shape as F5/F6, on a new
+    surface.
+    """
+    priors = _by_key(ctx, dec, "agent_id")
+    principals = {v.payload.get("principal_id") for v in priors}
+    principals.add(dec.payload.get("principal_id"))
+    principals.discard(None)
+    return float(len(principals))
+
+
+@feature("agent_attempts_ever", Surface.NETWORK)
+def agent_attempts_ever(ctx, as_of, dec):
+    """How many authorisation requests this agent has ever made.
+
+    Unbounded lookback, deliberately: a freshly-registered agent standing up to
+    work its first victims looks different from an established assistant with
+    months of history. Mirrors payee_vpa_age_attempts for handles. Absence of
+    history reads as zero attempts — a plain count, not a sentinel value, so no
+    'unseen means fraud' artifact can hide inside it.
+    """
+    return float(len(_by_key(ctx, dec, "agent_id")))

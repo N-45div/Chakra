@@ -90,7 +90,11 @@ class F11Enumeration(AttackFamily):
             + C.ENDPOINT_ACQUISITION_COST_INR * (n_end - 1)
         )
 
-    def episode_value_inr(self, authorised_amounts: list[float]) -> float:
+    def episode_value_inr(
+        self,
+        authorised_amounts: list[float],
+        authorised_payloads: list[dict] | None = None,
+    ) -> float:
         """A card tester gains the LIVE CARD, not the rupee probe that proved it.
 
         Summing the probe amounts would value a burst at a few rupees and make

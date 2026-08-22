@@ -107,6 +107,13 @@ def generate_background(
             second_vpa = _additional_vpa(rng, pop, cons, when=start)
             second_vpa_from = start + timedelta(seconds=rng.uniform(0, days * 86400 * 0.9))
 
+        # Agentic adoption is decided ONCE per consumer, before any transaction
+        # is placed: flipping it per transaction would let the same consumer be
+        # an agent user at noon and not at three, which no real deployment
+        # behaves like. Non-adopters simply never appear on the agentic rail.
+        agent_adopted = rng.uniform(0, 1) < C.AGENTIC_ADOPTION_RATE
+        agent_state: dict | None = None
+
         for _ in range(n_txn):
             when = start + timedelta(seconds=rng.uniform(0, days * 86400))
             if when >= horizon or when < active_from:
@@ -114,8 +121,17 @@ def generate_background(
             rail = only_rail or _choose_rail(rng, has_card=bool(cards))
             if rail == "card" and not cards:
                 continue  # cannot transact on a rail this consumer has no instrument for
-            peers = peer_pool
-            if rail == "card":
+            if rail == "agentic":
+                if not agent_adopted:
+                    continue
+                if agent_state is None:
+                    agent_state = _provision_agent(rng, pop, cons, when)
+                if when < agent_state["provisioned_at"]:
+                    continue
+                _emit_agentic_txn(log, rng, cons, vpas[0], favourites, when,
+                                  agent_state, discovered=discovered,
+                                  all_merchants=merchants)
+            elif rail == "card":
                 card = second_card if (second_card and when >= second_card_from) else cards[0]
                 _emit_card_txn(
                     log, rng, cons, card, favourites, when, device,
@@ -125,7 +141,7 @@ def generate_background(
                 vpa = second_vpa if (second_vpa and when >= second_vpa_from) else vpas[0]
                 _emit_upi_txn(
                     log, rng, cons, vpa, favourites, when, device,
-                    peers=peers, pop=pop, discovered=discovered,
+                    peers=peer_pool, pop=pop, discovered=discovered,
                     all_merchants=merchants, all_peers=consumers,
                 )
 
@@ -156,6 +172,184 @@ def _additional_vpa(rng: Rng, pop: Population, consumer, when):
             owner_party_id=consumer.party_id,
             issued_at=when,
             psp=rng.choice(["okhdfc", "okicici", "oksbi", "okaxis", "paytm", "ybl", "ibl"]),
+        )
+    )
+
+
+def _provision_agent(rng: Rng, pop: Population, consumer, when: datetime) -> dict:
+    """A consumer's shopping assistant, registered once at adoption.
+
+    Built through the SAME entity generator as everything else and added to the
+    population like any other identity. `registry_entry=True` because a
+    directory-listed assistant is the normal case — which is exactly why F10's
+    fake agents are also registry-listed: the attacker registers theirs through
+    the same door. If only honest agents were listed, "in the directory" would
+    be a free fraud flag and the family would test nothing.
+    """
+    from chakra.schema.entities import AgentIdentity
+
+    agent = pop.add_agent(
+        AgentIdentity(
+            agent_id=rng.uid("agent"),
+            registry_entry=True,
+            pubkey_id=rng.uid("pk"),
+            scope_merchants=frozenset(),
+            scope_max_amount=float("inf"),
+        )
+    )
+    # Delegation happens in the consumer's app, BEFORE anything reaches the
+    # network — psp_app surface, so a network-surface model cannot read it and
+    # must instead rely on what the protocol carries forward.
+    return {
+        "identity": agent,
+        "provisioned_at": when,
+        "consumer_party_id": consumer.party_id,
+        "emitted_delegate": False,
+    }
+
+
+def _emit_agentic_txn(log, rng, consumer, funding_vpa, merchants, when,
+                      agent_state, discovered=None, all_merchants=None):
+    """One genuine agentic checkout.
+
+    The protocol sequence IS the mandate layer: the agent declares what it
+    intends to buy, finalises that cart with the merchant, presents a signed
+    payment, and only then does an authorisation request reach the network.
+    Intent, cart and payment agree by construction here — the signature covers
+    exactly what was presented — so the deterministic policy checks of
+    EXPERIMENT_CONTRACT §4 pass for every row on this rail, including by design
+    the fraud rows F10 emits. What remains for a model to read is behavioural.
+    """
+    merch = _pick_payee(
+        rng, merchants, discovered if discovered is not None else set(),
+        all_merchants or merchants, when,
+    )
+    if merch is None:
+        return
+    amount = round(rng.amount_from_bands(C.AGENTIC_AMOUNT_BANDS), 2)
+    agent_id = agent_state["identity"].agent_id
+
+    if not agent_state["emitted_delegate"]:
+        log.append(
+            Event(
+                event_id=rng.uid("ev"),
+                event_type=EventType.DELEGATE_ADDED,
+                rail=Rail.AGENTIC,
+                ts=agent_state["provisioned_at"],
+                actor_id=consumer.party_id,
+                surface=Surface.PSP_APP,
+                available_at=agent_state["provisioned_at"],
+                label=Label.LEGIT,
+                payload={
+                    "agent_id": agent_id,
+                    "principal_id": agent_state["consumer_party_id"],
+                    "device_id": None,
+                },
+            )
+        )
+        agent_state["emitted_delegate"] = True
+
+    protocol = {
+        "agent_id": agent_id,
+        "principal_id": agent_state["consumer_party_id"],
+        "cart_total_inr": amount,
+        "counterparty_id": merch.party_id,
+        "item_count": rng.integers(1, 12),
+        "agent_provisioned_at": agent_state["provisioned_at"],
+    }
+    log.append(
+        Event(
+            event_id=rng.uid("ev"),
+            event_type=EventType.AGENT_INTENT_DECLARED,
+            rail=Rail.AGENTIC,
+            ts=when,
+            actor_id=consumer.party_id,
+            surface=Surface.NETWORK,
+            available_at=when,
+            label=Label.LEGIT,
+            payload=dict(protocol),
+        )
+    )
+
+    cart_ts = when + timedelta(seconds=rng.uniform(2, 90))
+    log.append(
+        Event(
+            event_id=rng.uid("ev"),
+            event_type=EventType.AGENT_CART_BUILT,
+            rail=Rail.AGENTIC,
+            ts=cart_ts,
+            actor_id=consumer.party_id,
+            surface=Surface.NETWORK,
+            available_at=cart_ts,
+            label=Label.LEGIT,
+            payload=dict(protocol),
+        )
+    )
+
+    pay_ts = cart_ts + timedelta(seconds=rng.uniform(0.5, 20))
+    payload = dict(protocol)
+    payload.update({
+        "instrument_id": funding_vpa.instrument_id,
+        "payer_vpa": funding_vpa.instrument_id,
+        "amount_inr": amount,
+        "mcc": "shopping",
+        "initiation_mode": "agentic",
+        "is_collect": False,
+        "geo_state": consumer.home_state,
+    })
+    log.append(
+        Event(
+            event_id=rng.uid("ev"),
+            event_type=EventType.AGENT_PAYMENT_PRESENTED,
+            rail=Rail.AGENTIC,
+            ts=pay_ts,
+            actor_id=consumer.party_id,
+            surface=Surface.NETWORK,
+            available_at=pay_ts,
+            label=Label.LEGIT,
+            payload=dict(payload),
+        )
+    )
+
+    auth_ts = pay_ts + timedelta(seconds=rng.uniform(0.05, 0.6))
+    # No linked_txn_id: on this rail the mandate protocol, not a payer-side
+    # initiation, is what precedes the authorisation request.
+    auth = Event(
+        event_id=rng.uid("ev"),
+        event_type=EventType.TXN_AUTH_REQUESTED,
+        rail=Rail.AGENTIC,
+        ts=auth_ts,
+        actor_id=consumer.party_id,
+        surface=Surface.NETWORK,
+        available_at=auth_ts,
+        label=Label.LEGIT,
+        payload=payload,
+    )
+    log.append(auth)
+
+    approved = _approved(rng)
+    out_ts = auth_ts + timedelta(seconds=rng.uniform(0.2, 2.0))
+    log.append(
+        Event(
+            event_id=rng.uid("ev"),
+            event_type=EventType.TXN_AUTHORISED if approved else EventType.TXN_DECLINED,
+            rail=Rail.AGENTIC,
+            ts=out_ts,
+            actor_id=consumer.party_id,
+            surface=Surface.NETWORK,
+            available_at=out_ts,
+            label=Label.LEGIT,
+            payload={
+                "instrument_id": funding_vpa.instrument_id,
+                "counterparty_id": merch.party_id,
+                "agent_id": agent_id,
+                "principal_id": agent_state["consumer_party_id"],
+                "amount_inr": amount,
+                "device_id": None,
+                "linked_txn_id": auth.event_id,
+                "linked_initiation_id": None,
+                "decline_reason": None if approved else "issuer_decline",
+            },
         )
     )
 

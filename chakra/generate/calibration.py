@@ -23,13 +23,13 @@ RAIL_MIX = {
     "agentic": 0.02,
 }
 
-# The rails the background generator can actually emit today. AePS and agentic
-# traffic arrive with families F12 and F10; until then, sampling RAIL_MIX
-# directly would silently fold their share into UPI and the emitted mix would
-# not match the documented one. Renormalising over implemented rails keeps the
-# constant and the behaviour honest, and a test asserts the emitted mix matches
-# this — not the aspirational one.
-IMPLEMENTED_RAILS = ("upi", "card")
+# The rails the background generator can actually emit today. AePS traffic
+# arrives with family F12; until then, sampling RAIL_MIX directly would
+# silently fold its share into UPI and the emitted mix would not match the
+# documented one. Renormalising over implemented rails keeps the constant and
+# the behaviour honest, and a test asserts the emitted mix matches this — not
+# the aspirational one.
+IMPLEMENTED_RAILS = ("upi", "card", "agentic")
 RAIL_MIX_IMPLEMENTED = {
     r: RAIL_MIX[r] / sum(RAIL_MIX[x] for x in IMPLEMENTED_RAILS) for r in IMPLEMENTED_RAILS
 }
@@ -38,6 +38,20 @@ RAIL_MIX_IMPLEMENTED = {
 # not capped by instrument availability: a consumer with no card can never
 # contribute a card transaction. ASSUMPTION.
 CARD_OWNERSHIP_RATE = 0.80
+
+# Share of consumers who have adopted an agentic shopping assistant that may
+# transact for them on the agentic rail. Early-stage technology: a minority
+# adoption, not a majority one. Consumers without it cannot appear on that rail
+# at all, which is why it enters world sizing through rail_participation_rate.
+# ASSUMPTION.
+AGENTIC_ADOPTION_RATE = 0.35
+
+# Cost of an attacker-operated agent identity: registering an assistant that
+# passes directory checks requires a compromised developer account, KYC-grade
+# identity paperwork or both. Like mule VPAs, this is what makes agent rotation
+# a decision rather than a free evasion lever against fan-out features.
+# ASSUMPTION.
+AGENT_ACQUISITION_COST_INR = 2500.0
 
 # Instrument churn in the genuine population.
 #
@@ -98,9 +112,9 @@ def rail_share_of_legit(rail: str) -> float:
     # well discounted card twice and left prevalence ~30% BELOW target, while
     # omitting it entirely left prevalence ~30% ABOVE. Two distinct quantities
     # that had been conflated in both directions.
-    if rail == "card":
-        return RAIL_MIX_IMPLEMENTED["card"]
-    return RAIL_MIX_IMPLEMENTED["upi"]
+    if rail not in RAIL_MIX_IMPLEMENTED:
+        raise ValueError(f"rail {rail!r} is not implemented; cannot size a world on it")
+    return RAIL_MIX_IMPLEMENTED[rail]
 
 
 def rail_participation_rate(rail: str) -> float:
@@ -109,9 +123,15 @@ def rail_participation_rate(rail: str) -> float:
     The generator skips a consumer with no card, so only ~80% of the population
     ever contributes card volume. Sizing a world as if all of them did produced
     ~20% fewer genuine rows than assumed, and prevalence correspondingly higher.
-    Everyone holds a VPA, so UPI participation is total.
+    Everyone holds a VPA, so UPI participation is total. Agentic checkout needs
+    both a funding instrument and adopted agent software, so participation is
+    the adoption rate.
     """
-    return CARD_OWNERSHIP_RATE if rail == "card" else 1.0
+    if rail == "card":
+        return CARD_OWNERSHIP_RATE
+    if rail == "agentic":
+        return AGENTIC_ADOPTION_RATE
+    return 1.0
 
 # UPI transaction-type split. P2M has grown to roughly half of UPI volume.
 # ASSUMPTION, order-of-magnitude.
@@ -139,6 +159,16 @@ CARD_AMOUNT_BANDS = [
     (2000, 10000, 0.30),
     (10000, 50000, 0.13),
     (50000, 300000, 0.03),
+]
+
+# Agentic-checkout amounts: delegated shopping skews toward baskets rather than
+# single items, so the mid bands carry more weight than card ecom. ASSUMPTION.
+AGENTIC_AMOUNT_BANDS = [
+    (100, 500, 0.15),
+    (500, 2000, 0.35),
+    (2000, 10000, 0.32),
+    (10000, 50000, 0.15),
+    (50000, 150000, 0.03),
 ]
 
 # Baseline authorisation approval rate for genuine traffic. ASSUMPTION.
@@ -187,6 +217,12 @@ MULE_VPA_ACQUISITION_COST_INR = 1500.0
 # gets sold on. Valuing a burst at the probe amounts would make every cost
 # dominate it and misrepresent the economics entirely. ASSUMPTION.
 VALIDATED_CARD_VALUE_INR = 800.0
+
+# Resale discount on goods extracted in a bust-out burst. Stolen jewellery and
+# electronics do not retail at face value; fencing channels pay a fraction.
+# Applying it stops the family from valuing its extraction at retail price and
+# thereby overpaying for evasion. ASSUMPTION, order-of-magnitude.
+CASH_CONVERSION_FACTOR = 0.85
 
 # Rate at which genuine consumers pay someone they have never paid before.
 #

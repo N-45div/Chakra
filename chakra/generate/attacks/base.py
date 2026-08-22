@@ -78,7 +78,11 @@ class AttackFamily(ABC):
         """
         return 0.0
 
-    def episode_value_inr(self, authorised_amounts: list[float]) -> float:
+    def episode_value_inr(
+        self,
+        authorised_amounts: list[float],
+        authorised_payloads: list[dict] | None = None,
+    ) -> float:
         """Rupees the attacker GAINED from the authorised transactions that
         landed before the first alert.
 
@@ -88,6 +92,12 @@ class AttackFamily(ABC):
         tester it is emphatically NOT the one-rupee probe that happened to be
         approved — it is the resale value of the live card that probe just
         confirmed.
+
+        `authorised_payloads`, when supplied, carries each authorised row's raw
+        request-time payload so a family whose episodes have PHASES can tell its
+        own spend from its extraction: an F8 nurture purchase is cost the
+        attacker laid out, not money gained, and summing both would flatter the
+        attacker by exactly the size of their own investment.
 
         This exists because utility previously mixed units: yield was a COUNT of
         validated cards and cost was RUPEES, bridged by an invented constant.

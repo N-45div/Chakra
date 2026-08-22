@@ -11,11 +11,15 @@ from chakra.generate.attacks.base import AttackFamily, AttackParams, ParamSpec
 from chakra.generate.attacks.f11_enumeration import F11Enumeration
 from chakra.generate.attacks.f5_upi_deception import F5UpiDeception
 from chakra.generate.attacks.f6_mule_network import F6MuleNetwork
+from chakra.generate.attacks.f8_bustout import F8BustOut
+from chakra.generate.attacks.f10_agentic import F10AgenticCheckout
 
 ATTACK_FAMILIES: dict[str, AttackFamily] = {
     "F11": F11Enumeration(),
     "F5": F5UpiDeception(),
     "F6": F6MuleNetwork(),
+    "F8": F8BustOut(),
+    "F10": F10AgenticCheckout(),
 }
 
 __all__ = [
@@ -26,4 +30,6 @@ __all__ = [
     "F11Enumeration",
     "F5UpiDeception",
     "F6MuleNetwork",
+    "F8BustOut",
+    "F10AgenticCheckout",
 ]

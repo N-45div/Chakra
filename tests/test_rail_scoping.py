@@ -31,9 +31,10 @@ def _mixed_log():
 
 
 def test_unscoped_matrix_mixes_rails():
-    """Guards the premise: without scoping the population really is mixed."""
+    """Guards the premise: without scoping the population really is mixed.
+    The set grows whenever a rail is implemented; it must never shrink to one."""
     _, _, meta = build_matrix(_mixed_log(), Surface.NETWORK)
-    assert set(meta["rail"]) == {"upi", "card"}
+    assert {"upi", "card"} <= set(meta["rail"])
 
 
 def test_card_scoped_matrix_contains_only_card_rows():
