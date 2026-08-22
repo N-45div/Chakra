@@ -8,9 +8,15 @@ An attacker generates fraud, a detector scores it, the attacker reads what slipp
 
 ---
 
+## The three pillars, anywhere in this repo
+
+- **Identify** — [`docs/ATTACK_TAXONOMY.md`](docs/ATTACK_TAXONOMY.md): thirteen families mapped; five are executable, the rest are specified with mechanism, GenAI delta and signal shape, and receive no performance claims.
+- **Generate** — `chakra/generate/`: the population model, genuine background traffic and the attack families, each a parameterised *raw-event* emitter.
+- **Defend** — `chakra/detect/`: rail-scoped LightGBM + isolation-forest scorer with a logistic baseline, inside the four-stream adaptive loop (`chakra/loop/`).
+
 ## Scope
 
-> Thirteen evidence-backed families are mapped. Three — **F11** (card enumeration), **F5** (UPI authorised push) and **F6** (mule networks) — are implemented and enter the adaptive loop. F8 and F10 are specified but **not yet implemented**. The remaining eight are taxonomy only. No family receives a performance claim until the registered 20-seed, 10-generation run.
+> Five families are executable and enter the adaptive loop: **F11** (card enumeration), **F5** (UPI authorised push), **F6** (mule networks), **F8** (credit nurture and bust-out), **F10** (agentic checkout manipulation). Three railroads are implemented with genuine background traffic: UPI, card, agentic. See the taxonomy for the remaining eight.
 
 ## Data disclosure
 
@@ -24,16 +30,34 @@ Three lanes, never conflated:
 
 ## Two rules that decide whether any result means anything
 
-**Attacks emit raw actions, never engineered features.** An attack simulates five rapid payments so `velocity_10m` is *derived*. An attack that sets `velocity_10m = 5` teaches the detector rules its author wrote, and every hold-out number becomes meaningless.
+**Attacks emit raw actions, never engineered features.** An attack simulates five rapid payments so `velocity_10m` is *derived*. An attack that sets `velocity_10m = 5` teaches the detector rules its author wrote, and every hold-out number becomes meaningless. Enforced by test, not by discipline.
 
 **Every feature declares when it becomes observable, and to whom.** `decision_surface`, `decision_timestamp`, `available_at`. The default model uses network-surface signals only; app and telco telemetry run as a labelled ablation.
 
 ## Two claims, never merged
 
-- **Zero-shot** — frozen detector, family used nowhere in training, one number at generation zero.
+- **Zero-shot (LOFO)** — frozen detector, family used nowhere in training, one number. [`chakra/evaluate/lofo.py`](chakra/evaluate/lofo.py). Rail-scoped: a family with no within-rail sibling receives *no* zero-shot number rather than a fudged one.
 - **Adaptive recovery** — detector has had labelled feedback; trajectory measured on fresh monitor batches.
 
 "Never trained on this family and caught N% by generation five" is logically impossible. After generation one, it has seen the family.
+
+## Results
+
+The registered protocol is fixed in [`docs/EXPERIMENT_CONTRACT.md`](docs/EXPERIMENT_CONTRACT.md): 20 seeds (1000–1019), 10 generations, five families, median and interquartile range across all seeds, no seed selected for presentation, no run discarded. Execute it with:
+
+```
+python scripts/run_registered.py --workers 8
+```
+
+Every number flows from the sealed run artifacts into the [dashboard](dashboard/index.html) and the walkthrough document:
+
+```
+python scripts/build_dashboard.py          # dashboard/index.html (static, self-contained)
+python scripts/build_walkthrough.py        # docs/Walkthrough.docx
+python scripts/run_lofo.py                 # zero-shot protocol
+```
+
+The current aggregate results live in the generated dashboard and in `runs/`; the honesty ledger in [`docs/FINDINGS.md`](docs/FINDINGS.md) records the claims this project withdrew before any of them reached a submission.
 
 ## Layout
 
@@ -42,16 +66,24 @@ chakra/
   schema/     event ontology, entities, feature registry
   generate/   population model, attack families (raw-action emitters)
   detect/     LightGBM + isolation forest + logistic baseline
-  loop/       orchestrator, proposers, pre-registered bounds
-  evaluate/   fidelity gates, LOFO harness, metrics
+  loop/       orchestrator, proposer, pre-registered bounds
+  evaluate/   fidelity gates, LOFO harness, metrics, audit sealing
+  lanes/      Lane A synthetic-to-real validation on real ULB data
 docs/
   EXPERIMENT_CONTRACT.md   pre-registered; read before changing anything
+  ATTACK_TAXONOMY.md       the Identify pillar
+  FINDINGS.md              results and, more importantly, retractions
   EVENT_SCHEMA.md          the ontology
 data/
   raw/ interim/ locked/    locked/ is write-once
-runs/                      one directory per seeded run
+runs/                      one sealed directory per seeded run
 ```
 
-## Status
+## Development
 
-Three families implemented (F11, F5, F6). No reportable result exists: every run so far is a development pilot below the registered 20-seed, 10-generation contract. `docs/EXPERIMENT_CONTRACT.md` is pre-registered — it fixes what will be measured before results exist, and may not be edited to match an outcome.
+```
+pip install -e .[dev]
+pytest -q
+```
+
+75 checks cover the load-bearing guarantees: no feature injection by attacks, truth isolation, availability discipline, stream separation, threshold honesty, determinism, and per-family mechanics for F5, F6, F8, F10 and F11.

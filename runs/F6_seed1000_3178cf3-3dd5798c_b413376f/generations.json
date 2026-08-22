@@ -1,0 +1,97 @@
+[
+  {
+    "generation": 0,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.00525283753417207,
+    "fpr_post": 0.004880701905048163,
+    "prevalence": 0.004090999800439034,
+    "n_episodes": 18,
+    "best_params": {
+      "fan_in_per_mule": 23.0,
+      "dwell_seconds": 10776.67938374346,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 6.0,
+      "amount_jitter": 0.3297852519066827,
+      "inter_hop_seconds": 2.0994980072293514
+    }
+  },
+  {
+    "generation": 1,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9915966386554622,
+    "recall_post": 0.9915966386554622,
+    "fpr_pre": 0.0041574279379157425,
+    "fpr_post": 0.004088137472283814,
+    "prevalence": 0.004105855156471034,
+    "n_episodes": 18,
+    "best_params": {
+      "fan_in_per_mule": 14.0,
+      "dwell_seconds": 66613.68742429833,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 5.0,
+      "amount_jitter": 0.3077547316260826,
+      "inter_hop_seconds": 1927.1022792167744
+    }
+  },
+  {
+    "generation": 2,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.0058873720136518775,
+    "fpr_post": 0.004948805460750853,
+    "prevalence": 0.004163480329679667,
+    "n_episodes": 18,
+    "best_params": {
+      "fan_in_per_mule": 14.0,
+      "dwell_seconds": 66613.68742429833,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 5.0,
+      "amount_jitter": 0.3077547316260826,
+      "inter_hop_seconds": 1927.1022792167744
+    }
+  },
+  {
+    "generation": 3,
+    "episode_evasion": 0.0,
+    "attacker_yield": 53.55333333333333,
+    "recall_pre": 0.9322033898305084,
+    "recall_post": 0.9915254237288136,
+    "fpr_pre": 0.005025125628140704,
+    "fpr_post": 0.004747877317622596,
+    "prevalence": 0.004072757394815863,
+    "n_episodes": 18,
+    "best_params": {
+      "fan_in_per_mule": 14.0,
+      "dwell_seconds": 66613.68742429833,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 5.0,
+      "amount_jitter": 0.3077547316260826,
+      "inter_hop_seconds": 1927.1022792167744
+    }
+  },
+  {
+    "generation": 4,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9911504424778761,
+    "recall_post": 1.0,
+    "fpr_pre": 0.004727783112949693,
+    "fpr_post": 0.005134076974218808,
+    "prevalence": 0.004156398278589032,
+    "n_episodes": 18,
+    "best_params": {
+      "fan_in_per_mule": 12.0,
+      "dwell_seconds": 78476.78040240207,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 6.0,
+      "amount_jitter": 0.4628961637063389,
+      "inter_hop_seconds": 2387.377919529327
+    }
+  }
+]

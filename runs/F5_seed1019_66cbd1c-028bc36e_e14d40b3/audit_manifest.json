@@ -1,0 +1,16 @@
+{
+  "digest": "a61d92aa5f51ac7e277a9feba3c3bf8236beef8f3e4bc2b5f3af4d2427ad29cd",
+  "digested_columns": [
+    "event_id",
+    "amount_inr",
+    "family",
+    "rail"
+  ],
+  "created_at": "2026-02-01T00:00:00",
+  "seed": 1019,
+  "family": "F5",
+  "rail": "upi",
+  "n_rows": 53584,
+  "n_fraud": 220,
+  "prevalence": 0.0041057031949835775
+}

@@ -4,10 +4,17 @@ Reads whatever is in runs/ and emits a single self-contained HTML file. No
 server, no CDN, no external assets: a demo that depends on a live process or a
 network fetch is a demo that can fail in the room.
 
-Every number on the page comes from a JSON artifact written by a seeded run.
-Nothing is hardcoded, and where an artifact is missing the panel says so rather
-than rendering a plausible placeholder — this project has already had to retract
-three claims, and a dashboard that invents a number would be the fourth.
+The page has two halves. The report half shows the loop mechanics, per-family
+panels, Lane A utility, LOFO zero-shot results and the honesty ledger — every
+number read from a JSON artifact written by a seeded run, with missing panels
+saying so rather than rendering placeholders. The explorer half is the demo:
+an in-browser replay of the recorded runs, labelled REPLAY on screen per
+EXPERIMENT_CONTRACT §6, with a generation scrubber driving the attacker's
+yield, the detector's recall and the parameter drift — defaults to the
+across-seed aggregate because no seed may be selected for presentation.
+
+The replay data is embedded as JSON from the same artifacts; the scrubber
+animates client-side. Nothing is invented at render time.
 """
 
 from __future__ import annotations
@@ -29,14 +36,25 @@ PAL = {
     "fpr": ("#1baf7a", "#199e70"),   # false positives on legit
 }
 
+FAMILY_NAMES = {
+    "F11": "Enumeration / card testing",
+    "F5": "UPI authorised push",
+    "F6": "Mule networks",
+    "F8": "Credit nurture & bust-out",
+    "F10": "Agentic checkout manipulation",
+}
+FAMILY_RAIL = {"F11": "card", "F5": "UPI", "F6": "UPI", "F8": "card", "F10": "agentic"}
+
 
 def load_runs():
-    """Group run directories by family."""
-    fams: dict[str, list[dict]] = {}
+    """Group run directories by family, newest directory per (family, seed)."""
+    best: dict[tuple[str, str], tuple[float, dict]] = {}
     for d in sorted(RUNS.glob("*_seed*")):
         gen_f, score_f = d / "generations.json", d / "audit_score.json"
         if not gen_f.exists():
             continue
+        fam = d.name.split("_seed")[0]
+        seed = d.name.split("_seed")[1].split("_")[0]
         try:
             gens = json.loads(gen_f.read_text(encoding="utf-8"))
         except Exception:
@@ -47,14 +65,30 @@ def load_runs():
                 score = json.loads(score_f.read_text(encoding="utf-8"))
             except Exception:
                 score = {}
-        fam = d.name.split("_seed")[0]
-        seed = d.name.split("_seed")[1].split("_")[0]
-        fams.setdefault(fam, []).append({"seed": seed, "gens": gens, "score": score})
+        mtime = score_f.stat().st_mtime if score_f.exists() else 0.0
+        rec = {"seed": seed, "gens": gens, "score": score, "dir": d.name}
+        if (fam, seed) not in best or mtime > best[(fam, seed)][0]:
+            best[(fam, seed)] = (mtime, rec)
+    fams: dict[str, list[dict]] = {}
+    for (fam, _seed), (_mt, rec) in best.items():
+        fams.setdefault(fam, []).append(rec)
+    for v in fams.values():
+        v.sort(key=lambda r: r["seed"])
     return fams
 
 
 def load_lane_a():
     f = RUNS / "lane_a_ulb.json"
+    if not f.exists():
+        return None
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def load_lofo():
+    f = RUNS / "_lofo" / "lofo_results.json"
     if not f.exists():
         return None
     try:
@@ -83,7 +117,6 @@ def line_chart(series, n_gen, height=210, width=560):
     ys = lambda v: pad_t + ih - (ih * max(0.0, min(1.0, v)))  # noqa: E731
 
     parts = [f'<svg viewBox="0 0 {width} {height}" role="img" class="chart">']
-    # recessive grid + axis labels
     for frac in (0, 0.25, 0.5, 0.75, 1.0):
         y = ys(frac)
         parts.append(f'<line class="grid" x1="{pad_l}" y1="{y:.1f}" x2="{pad_l+iw}" y2="{y:.1f}"/>')
@@ -118,7 +151,7 @@ def bar_pair(rows, height=190, width=560):
     light-mode contrast warn)."""
     if not rows:
         return "<p class='empty'>no data</p>"
-    pad_l, pad_r, pad_t = 168, 74, 12
+    pad_l, pad_r, pad_t = 206, 74, 12
     bar_h, gap = 20, 12
     ih = len(rows) * (bar_h + gap)
     height = pad_t + ih + 18
@@ -152,14 +185,8 @@ def table(headers, rows):
 
 
 # --------------------------------------------------------------------------
-
-FAMILY_NAMES = {
-    "F11": "Enumeration / card testing",
-    "F5": "UPI authorised push",
-    "F6": "Mule networks",
-}
-FAMILY_RAIL = {"F11": "card", "F5": "UPI", "F6": "UPI"}
-
+# report panels
+# --------------------------------------------------------------------------
 
 def family_panel(fam, runs):
     name = FAMILY_NAMES.get(fam, fam)
@@ -179,7 +206,11 @@ def family_panel(fam, runs):
     prev = per_gen("prevalence")
 
     chart = line_chart(
-        [("pre", "recall (pre)", pre), ("post", "recall (post)", post), ("fpr", "FPR on legit", fpr)],
+        [
+            ("pre", "recall (pre)", pre),
+            ("post", "recall (post)", post),
+            ("fpr", "FPR on legit", fpr),
+        ],
         n_gen,
     )
     rows = [
@@ -209,11 +240,13 @@ def family_panel(fam, runs):
     auprc = med([m.get("auprc") for m in audits]) if audits else None
     a_recall = med([m.get("recall_at_0_5pct_fpr") for m in audits]) if audits else None
     a_fpr = med([m.get("achieved_fpr_at_0_5pct_cut") for m in audits]) if audits else None
+    vwr = med([m.get("value_weighted_recall") for m in audits]) if audits else None
 
     audit_line = (
-        f"sealed audit — AUPRC {auprc:.4f}, recall {a_recall:.4f} at a frozen cut "
-        f"realising {a_fpr:.4%} FPR"
-        if auprc is not None and a_recall is not None and a_fpr is not None
+        f"sealed audit — AUPRC {auprc:.4f} @ prevalence {med([m.get('prevalence') for m in audits]):.4%}, "
+        f"recall {a_recall:.4f} at a frozen cut realising {a_fpr:.4%} FPR, "
+        f"value-weighted recall {vwr:.3f}"
+        if None not in (auprc, a_recall, a_fpr, vwr)
         else "sealed audit — not yet scored"
     )
 
@@ -284,6 +317,68 @@ def lane_a_panel(la):
         why a synthetic-only pipeline can mislead.
       </p>
       <details><summary>Table view — every plotted value</summary>{tbl}</details>
+    </section>"""
+
+
+def lofo_panel(lofo):
+    if not lofo:
+        return """<section class="panel"><h3>Zero-shot (LOFO)</h3>
+        <p class="empty">no LOFO artifact present (python scripts/run_lofo.py).</p></section>"""
+    results = lofo.get("results", {})
+    rows = []
+    for fam, r in sorted(results.items()):
+        if r.get("defined"):
+            rows.append(
+                (
+                    fam,
+                    "+".join(r.get("siblings", [])),
+                    f"{r['auprc']:.4f}",
+                    f"{r['recall_at_cut']:.4f} (FPR {r['achieved_fpr_at_cut']:.4%})",
+                    f"{r['baseline_auprc']:.4f}",
+                )
+            )
+        else:
+            rows.append((fam, "none", "not defined — no within-rail sibling", "", ""))
+    tbl = table(["held out", "trained on", "AUPRC", "recall @frozen cut", "logit baseline AUPRC"], rows)
+    return f"""
+    <section class="panel">
+      <h3>Zero-shot (LOFO) — the detector frozen, the family unseen</h3>
+      <p class="sub">Trained only on sibling families of the same rail; threshold frozen on
+      sibling-only calibration; one evaluation on the held-out family. F10 has no agentic-rail
+      sibling, so it receives no zero-shot number — absence of a number is the correct output.</p>
+      {tbl}
+    </section>"""
+
+
+TAXONOMY_ROWS = [
+    ("F11", "Enumeration / card testing", "card", "executable"),
+    ("F5", "UPI authorised-push deception", "UPI", "executable"),
+    ("F6", "Mule networks / layering", "UPI", "executable"),
+    ("F8", "Credit nurture & bust-out", "card", "executable"),
+    ("F10", "Agentic checkout manipulation", "agentic", "executable"),
+    ("F1", "Real-time deepfake impersonation", "UPI/IMPS", "mapped"),
+    ("F2", "Synthetic identity onboarding", "account", "mapped"),
+    ("F3", "Voice-clone vishing", "telco→card/UPI", "mapped"),
+    ("F4", "LLM phishing at industrial scale", "card/UPI", "mapped"),
+    ("F7", "Fake-merchant acquiring abuse", "acquiring", "mapped"),
+    ("F9", "Fabricated disputes / refund abuse", "card/UPI", "mapped"),
+    ("F12", "AePS biometric fraud", "aeps", "mapped"),
+    ("F13", "Personalised investment scams", "UPI/IMPS", "mapped"),
+]
+
+
+def taxonomy_panel():
+    tbl = table(
+        ["code", "family", "rail", "status"],
+        TAXONOMY_ROWS,
+    )
+    return f"""
+    <section class="panel">
+      <h3>Identify — thirteen families mapped, five executable</h3>
+      <p class="sub">Executable families enter the adaptive loop and receive quantitative
+      evaluation. Mapped families are specified in docs/ATTACK_TAXONOMY.md with mechanism,
+      GenAI delta and signal shape — they receive no performance claims, by design.</p>
+      {tbl}
     </section>"""
 
 
@@ -372,12 +467,259 @@ LOOP_SVG = """
 </svg>"""
 
 
+# --------------------------------------------------------------------------
+# replay explorer (client-side, from embedded artifacts)
+# --------------------------------------------------------------------------
+
+def replay_data(fams):
+    """Compact per-family JSON: seeds and their generation series."""
+    payload = {}
+    for fam, runs in fams.items():
+        series = []
+        for r in runs:
+            gens = r["gens"]
+            if not gens:
+                continue
+            series.append(
+                {
+                    "seed": r["seed"],
+                    "gens": [
+                        {
+                            "recall_pre": g.get("recall_pre"),
+                            "recall_post": g.get("recall_post"),
+                            "fpr_post": g.get("fpr_post"),
+                            "evasion": g.get("episode_evasion"),
+                            "yield": g.get("attacker_yield"),
+                            "prevalence": g.get("prevalence"),
+                            "best_params": g.get("best_params") or {},
+                        }
+                        for g in gens
+                    ],
+                }
+            )
+        if series:
+            payload[fam] = {
+                "rail": FAMILY_RAIL.get(fam, "-"),
+                "name": FAMILY_NAMES.get(fam, fam),
+                "n_gen": len(series[0]["gens"]),
+                "series": series,
+                "audit": {
+                    r["seed"]: r["score"].get("metrics", {})
+                    for r in runs
+                    if r.get("score", {}).get("metrics")
+                },
+            }
+    return payload
+
+
+REPLAY_JS = r"""
+const R = JSON.parse(document.getElementById('replay-data').textContent);
+const $ = (s) => document.querySelector(s);
+let curFam = Object.keys(R)[0] || null;
+let curSeed = 'agg';   // 'agg' = across-seed aggregate (default; no seed selected)
+let curGen = 0, timer = null, playing = false;
+const NS = 'http://www.w3.org/2000/svg';
+const W = 560, H = 320, PL = 52, PR = 96, PT = 14, PB = 34;
+
+function el(tag, attrs){const e=document.createElementNS(NS,tag);
+  for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+function txt(x,y,s,cls,anchor){const t=el('text',{x,y,'class':cls});
+  if(anchor)t.setAttribute('text-anchor',anchor);t.textContent=s;return t;}
+
+function famTabs(){
+  const box=$('#fam-tabs');box.textContent='';
+  for(const f of Object.keys(R)){
+    const b=document.createElement('button');
+    b.className='ftab'+(f===curFam?' sel':'');
+    b.textContent=f;b.onclick=()=>{curFam=f;curSeed='agg';curGen=0;seedSel();draw();};
+    box.appendChild(b);
+  }
+}
+function seedSel(){
+  const s=$('#seed-sel');s.textContent='';
+  const d=data();
+  const opts=[['agg','all seeds (median \u00b1 IQR)']];
+  for(const x of d.series)opts.push([x.seed,'seed '+x.seed]);
+  for(const [v,l] of opts){const o=document.createElement('option');
+    o.value=v;o.textContent=l;o.selected=(v===String(curSeed));s.appendChild(o);}
+  s.onchange=()=>{curSeed=s.value==='agg'?'agg':s.value;curGen=0;draw();};
+}
+function data(){return R[curFam]||{series:[],n_gen:0};}
+function series(){
+  const d=data();
+  if(curSeed==='agg'){
+    const n=d.n_gen;const out=[];
+    for(let g=0;g<n;g++){
+      const v={recall_pre:[],recall_post:[],fpr_post:[],evasion:[],yield:[],prevalence:[]};
+      for(const s of d.series)if(s.gens[g])for(const k in v){
+        const x=s.gens[g][k];if(x!==null&&x!==undefined&&!isNaN(x))v[k].push(x);}
+      const r={};
+      for(const k in v){if(!v[k].length){r[k]=[null,null,null];continue;}
+        v[k].sort((a,b)=>a-b);
+        const q=p=>{const  i=(v[k].length-1)*p,lo=Math.floor(i),hi=Math.ceil(i);
+          return lo===hi?v[k][lo]:v[k][lo]+(v[k][hi]-v[k][lo])*(i-lo);};
+        r[k]=[q(.5),q(.25),q(.75)];}
+      out.push(r);
+    }
+    return out;
+  }
+  const s=d.series.find(x=>x.seed===curSeed);
+  return (s?s.gens:d.series[0].gens).map(g=>({
+    recall_pre:[g.recall_pre,null,null],recall_post:[g.recall_post,null,null],
+    fpr_post:[g.fpr_post,null,null],evasion:[g.evasion,null,null],
+    yield:[g.yield,null,null],prevalence:[g.prevalence,null,null]}));
+}
+function yScale(vals,top){let vmax=Math.max(...vals.map(x=>x[0]).filter(x=>x!==null&&isFinite(x)),top);
+  if(!isFinite(vmax))vmax=1;return v=>PT+(H-PT-PB)*(1-v/vmax);}
+
+function draw(){
+  const d=data();const ser=series();
+  document.getElementById('rep-fam').textContent=
+    curFam+' \u00b7 '+d.name+' \u00b7 '+d.rail+' rail \u00b7 '+
+    (curSeed==='agg'?('all '+d.series.length+' seeds'):('seed '+curSeed));
+  const n=Math.min(d.n_gen,ser.length);
+  document.getElementById('gen-slider').max=Math.max(0,n-1);
+  document.getElementById('gen-slider').value=curGen;
+  document.getElementById('gen-label').textContent='generation '+curGen;
+
+  const g=ser[curGen];const svg=$('#replay-chart');svg.textContent='';
+  const grid=el('g',{});svg.appendChild(grid);
+  const iw=W-PL-PR,ih=H-PT-PB;
+  const xs=i=>PL+iw*(n>1?i/(n-1):0);
+
+  // recall + fpr lines (all generations, current gen highlighted)
+  const yr=yScale([...ser.map(s=>s.recall_pre),...ser.map(s=>s.recall_post),...ser.map(s=>s.fpr_post)],1);
+  for(const frac of [0,.25,.5,.75,1]){const y=PT+ih*(1-frac);
+    svg.appendChild(el('line',{'class':'grid',x1:PL,y1:y,x2:PL+iw,y2:y}));
+    svg.appendChild(txt(PL-8,y+3,frac.toFixed(2),'axis','end'));}
+  for(let i=0;i<n;i++)svg.appendChild(txt(xs(i),H-10,String(i),'axis','middle'));
+  svg.appendChild(txt(PL+iw/2,H, 'generation','axis-title','middle'));
+
+  const lines=[['ln-pre','recall pre','recall_pre'],['ln-post','recall post','recall_post'],
+               ['ln-fpr','FPR legit','fpr_post']];
+  for(const [cls,label,key] of lines){
+    const pts=ser.map((s,i)=>[xs(i),yr(s[key][0])]).filter(p=>p[1]===p[1]);
+    if(!pts.length)continue;
+    const path=el('path',{d:pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' '),'class':'ln '+cls});
+    svg.appendChild(path);
+    for(const [x,y] of pts)svg.appendChild(el('circle',{cx:x,cy:y,r:3,'class':'pt '+cls.slice(3)}));
+    const e=pts[pts.length-1];svg.appendChild(txt(e[0]+8,e[1]+4,label,'endlbl'));
+  }
+  // current generation: yield + evasion as a right-side stat strip
+  const stat=$('#rep-stats');stat.textContent='';
+  const kv=[['episode evasion',g.evasion[0],x=>x.toFixed(3)],
+            ['attacker yield \u20b9',g.yield[0],x=>Math.round(x).toLocaleString('en-IN')],
+            ['prevalence',g.prevalence[0],x=>(x*100).toFixed(2)+'%'],
+            ['monitor recall pre/post',
+              g.recall_pre[0],x=>x.toFixed(3)+(g.recall_post[0]!==null?(' / '+g.recall_post[0].toFixed(3)):'')]];
+  for(const [l,v,f] of kv){
+    const row=document.createElement('div');row.className='rs';
+    row.appendChild(Object.assign(document.createElement('span'),{className:'rs-l',textContent:l}));
+    row.appendChild(Object.assign(document.createElement('span'),{className:'rs-v',
+      textContent:v===null||v===undefined?'-':f(v)}));
+    stat.appendChild(row);
+  }
+  drawParams(Math.floor(curGen));
+}
+function drawParams(g){
+  const box=$('#rep-params');box.textContent='';
+  const d=data();
+  if(curSeed==='agg'){
+    const firsts=d.series.map(s=>s.gens[g]&&s.gens[g].best_params).filter(Boolean);
+    if(!firsts.length){box.appendChild(hint('no parameter records'));return;}
+    box.appendChild(hint('median of seeds at generation '+g+' \u2014 parameters only mean anything when '
+      +'the fitness gradient driving them is non-zero (F-002/F-003)'));
+    const keys=Object.keys(firsts[0]);
+    for(const k of keys){
+      const vals=firsts.map(f=>f[k]).filter(v=>v!==null&&v!==undefined&&!isNaN(v));
+      if(!vals.length)continue;
+      const med=vals.sort((a,b)=>a-b)[Math.floor(vals.length/2)];
+      chip(k,med);
+    }
+  } else {
+    const s=d.series.find(x=>x.seed===curSeed);let bp=null;
+    if(s&&s.gens[g])bp=s.gens[g].best_params;
+    if(!bp||!Object.keys(bp).length){box.appendChild(hint('no parameter records'));return;}
+    box.appendChild(hint('seed '+curSeed+' \u2014 parameters only mean anything when the fitness '
+      +'gradient driving them is non-zero (F-002/F-003)'));
+    for(const k of Object.keys(bp))chip(k,bp[k]);
+  }
+  function chip(k,v){
+    const s=document.createElement('span');s.className='chip';
+    s.textContent=k+'  '+(typeof v==='number'?v.toFixed(2):v);
+    box.appendChild(s);
+  }
+  function hint(t){
+    const s=document.createElement('span');s.className='hint';s.textContent=t;return s;
+  }
+}
+function seek(d){curGen=Math.max(0,Math.min(d,data().n_gen-1));draw();}
+function togglePlay(){
+  playing=!playing;
+  document.getElementById('play').textContent=playing?'\u23F8 pause':'\u25B8 play';
+  if(playing){timer=setInterval(()=>{if(curGen>=data().n_gen-1){togglePlay();return;}seek(curGen+1);},900);}
+  else clearInterval(timer);
+}
+window.addEventListener('DOMContentLoaded',()=>{if(!curFam)return;famTabs();seedSel();draw();});
+"""
+
+
+def replay_panel():
+    return """
+    <section class="panel" id="replay">
+      <header class="panel-head">
+        <div>
+          <h3>The loop in action <span class="rep-tag">REPLAY</span></h3>
+          <p class="sub" id="rep-fam"></p>
+        </div>
+        <div class="controls">
+          <select id="seed-sel" aria-label="seed"></select>
+          <button id="play" onclick="togglePlay()">&#9658; play</button>
+          <input id="gen-slider" type="range" min="0" max="9" step="1" value="0"
+                 oninput="seek(+this.value)" aria-label="generation"/>
+          <span id="gen-label" class="gen-label">generation 0</span>
+        </div>
+      </header>
+      <div class="rep-body">
+        <svg id="replay-chart" viewBox="0 0 560 320" role="img" class="chart" preserveAspectRatio="none"></svg>
+        <div id="rep-stats" class="rep-stats"></div>
+      </div>
+      <div id="rep-params" class="params"></div>
+      <details><summary>What this shows, and what it does not show</summary>
+        <p class="note">Play scrubs through the recorded generations. Blue is detector recall
+        before retraining, orange after, green is the false-positive rate on legitimate traffic —
+        the budget discipline holding while recall moves. Yield is what the attacker banked before
+        the first alert. Recorded runs are shown as REPLAY per the experiment contract, and the
+        default view is the across-seed aggregate because no single seed may be selected for
+        presentation. Parameters are shown with their caveat: on a flat fitness landscape a
+        parameter drift is noise, not strategy.</p>
+      </details>
+    </section>"""
+
+
+# --------------------------------------------------------------------------
+
 def build():
     fams = load_runs()
     la = load_lane_a()
+    lofo = load_lofo()
     panels = "".join(family_panel(f, r) for f, r in sorted(fams.items()))
     if not panels:
         panels = "<section class='panel'><p class='empty'>No loop runs found in runs/.</p></section>"
+
+    registered = all(
+        len(runs) >= 20 and max((len(r["gens"]) for r in runs), default=0) >= 10
+        for runs in fams.values()
+    ) and len(fams) >= 5
+    banner = (
+        "<strong>Registered run complete.</strong> All five families finished the pre-registered "
+        "20-seed, 10-generation protocol. Median and interquartile range across all seeds; no seed "
+        "selected for presentation; no run discarded."
+        if registered
+        else "<strong>Development pilot, not a submission result.</strong> "
+        "The registered experiment contract specifies 20 seeds and 10 generations; "
+        "families below that are labelled pilot. No pilot figure is a competition claim."
+    )
 
     css = """
 :root{color-scheme:light;--bg:#f4f5f7;--surface:#fcfcfb;--ink:#101418;--ink2:#3d4550;
@@ -385,9 +727,9 @@ def build():
 --bad:#d03b3b;--good:#0ca30c}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1013;
 --surface:#1a1a19;--ink:#f2f4f6;--ink2:#c3c8d0;--muted:#8c95a1;--line:#2b3038;
---pre:#3987e5;--post:#d95926;--fpr:#199e70;--bad:#e06a6a;--good:#3cb85c}}
+--pre:#3080e6;--post:#d95926;--fpr:#199e70;--bad:#e06a6a;--good:#3cb85c}}
 :root[data-theme="dark"]{--bg:#0e1013;--surface:#1a1a19;--ink:#f2f4f6;--ink2:#c3c8d0;
---muted:#8c95a1;--line:#2b3038;--pre:#3987e5;--post:#d95926;--fpr:#199e70;
+--muted:#8c95a1;--line:#2b3038;--pre:#3080e6;--post:#d95926;--fpr:#199e70;
 --bad:#e06a6a;--good:#3cb85c}
 *{box-sizing:border-box}
 body{margin:0;padding:0 20px 72px;background:var(--bg);color:var(--ink);
@@ -409,6 +751,7 @@ margin-bottom:8px;flex-wrap:wrap}
 .stat-bad .stat-n{color:var(--bad)}
 .stat-l{display:block;font-size:.76rem;color:var(--muted);max-width:20ch}
 .chart{width:100%;height:auto;display:block;margin:6px 0 4px;overflow:visible}
+#replay-chart{background:var(--bg);border:1px solid var(--line);border-radius:4px;width:100%}
 .grid{stroke:var(--line);stroke-width:1}
 .axis{fill:var(--muted);font-size:10px}
 .axis-title{fill:var(--muted);font-size:10px}
@@ -444,11 +787,37 @@ th{color:var(--muted);font-weight:500}
 .dg-l{stroke:var(--muted);fill:none;stroke-width:1.4}
 .dg-f{stroke:var(--post);fill:none;stroke-width:1.6;stroke-dasharray:5 4}
 .dg-fl{fill:var(--post);font-size:10px}
+#fam-tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+.ftab{font:inherit;font-size:.85rem;padding:5px 14px;border:1px solid var(--line);
+background:var(--surface);color:var(--ink2);border-radius:999px;cursor:pointer}
+.ftab.sel{background:var(--pre);border-color:var(--pre);color:#fff;font-weight:600}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:.86rem}
+.controls select{font:inherit;padding:4px 8px;border:1px solid var(--line);
+background:var(--surface);color:var(--ink);border-radius:4px}
+.controls button{font:inherit;padding:4px 12px;border:1px solid var(--line);
+background:var(--surface);color:var(--ink);border-radius:4px;cursor:pointer}
+.controls input[type=range]{width:150px}
+.gen-label{color:var(--muted);font-variant-numeric:tabular-nums;min-width:96px}
+.rep-tag{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:#fff;
+background:var(--muted);padding:2px 8px;border-radius:3px;vertical-align:middle}
+.rep-body{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:14px;align-items:start}
+@media (max-width:720px){.rep-body{grid-template-columns:1fr}}
+.rep-stats{display:grid;gap:8px}
+.rs{display:flex;justify-content:space-between;gap:8px;background:var(--bg);
+border:1px solid var(--line);border-radius:4px;padding:6px 10px;font-size:.82rem}
+.rs-l{color:var(--muted)}
+.rs-v{font-variant-numeric:tabular-nums;font-weight:600;text-align:right}
+.params{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.chip{font-size:.78rem;font-variant-numeric:tabular-nums;border:1px solid var(--line);
+background:var(--bg);padding:4px 10px;border-radius:999px;color:var(--ink2)}
+.hint{font-size:.76rem;color:var(--muted);width:100%}
+#rep-seed-note{color:var(--muted);font-size:.85rem;margin:.4rem 0 14px}
 footer{color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);
 padding-top:18px;margin-top:26px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 """
 
+    rdata = json.dumps(replay_data(fams), default=float, ensure_ascii=False)
     doc = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -460,9 +829,7 @@ padding-top:18px;margin-top:26px}
   <p class="lede">A closed-loop adversarial fraud range for Indian payment rails. An attacker
   generates fraud, a detector scores it, the attacker mutates on what slipped through, and the
   detector retrains — with the improvement measured on batches neither of them trained on.</p>
-  <div class="banner"><strong>Development pilot, not a submission result.</strong>
-  The registered experiment contract specifies 20 seeds and 10 generations; everything here is
-  below that. No figure on this page is a competition claim.</div>
+  <div class="banner">{banner}</div>
 </header>
 
 <section class="panel">
@@ -472,20 +839,30 @@ padding-top:18px;margin-top:26px}
   {LOOP_SVG}
 </section>
 
+{replay_panel()}
+
+{taxonomy_panel()}
+
 {panels}
+{lofo_panel(lofo)}
 {lane_a_panel(la)}
 {ledger_panel()}
 
 <footer>Every number is read from a seeded run artifact in <code>runs/</code>. Panels with no
-artifact say so rather than showing a placeholder.</footer>
-</div></body></html>"""
+artifact say so rather than showing a placeholder. Replay is labelled REPLAY per
+docs/EXPERIMENT_CONTRACT.md §6.</footer>
+</div>
+<script type="application/json" id="replay-data">{html.escape(rdata)}</script>
+<script>{REPLAY_JS}</script>
+</body></html>"""
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(doc, encoding="utf-8")
-    return OUT, len(fams), la is not None
+    return OUT, len(fams), la is not None, registered
 
 
 if __name__ == "__main__":
-    path, n_fams, has_la = build()
+    path, n_fams, has_la, registered = build()
     print(f"wrote {path}")
-    print(f"  families: {n_fams}   lane A: {'yes' if has_la else 'no'}")
+    print(f"  families: {n_fams}   lane A: {'yes' if has_la else 'no'}   "
+          f"registered-complete: {'yes' if registered else 'no'}")

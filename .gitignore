@@ -3,15 +3,20 @@ data/interim/
 __pycache__/
 *.pyc
 .venv/
+.pytest_cache/
 # Run artifacts: the JSON summaries ARE the dashboard's data source and must
 # ship with the repo so a static deploy can render without re-running the
 # experiment. The parquet evidence files are large and stay local; the
 # manifest carries their digest, so the seal is still verifiable.
 runs/**/*.parquet
 runs/_batch.log
+runs/_registered.log
+runs/_registered.err
+runs/_registered_failures.json
+runs/**/*.tmp
+runs/_dev_pilot_archive.zip
 !runs/.gitkeep
 .ipynb_checkpoints/
 kaggle.json
 chakra.egg-info/
 *.egg-info/
-data/raw/

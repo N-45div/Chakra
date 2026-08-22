@@ -39,11 +39,13 @@ Entities are created by the simulator's population model, calibrated to NPCI/RBI
 ## 3. Event types
 
 ### 3.1 Transaction events
-`txn_initiated`, `txn_authorised`, `txn_declined`, `txn_settled`, `txn_reversed`
+`txn_initiated`, `collect_requested`, `txn_auth_requested`, `txn_authorised`, `txn_declined`, `txn_settled`, `txn_reversed`
 
-Payload: `instrument_id`, `counterparty_id`, `amount_inr`, `mcc`, `channel`, `initiation_mode` (`push`\|`collect`\|`qr_intent`\|`pos`\|`ecom`\|`agent`), `device_id`, `geo_state`, `decline_reason`.
+Payload: `instrument_id`, `counterparty_id`, `amount_inr`, `mcc`, `channel`, `initiation_mode` (`push`\|`collect`\|`qr_intent`\|`pos`\|`ecom`\|`agentic`), `device_id`, `geo_state`, `decline_reason`.
 
-`initiation_mode` matters more than it looks: the direction-inversion deception at the heart of F5 is only visible if push and collect are distinguishable at the event level.
+`txn_auth_requested` is the single scored decision point: on UPI it can only follow the payer's PIN, on card the issuer's OTP step, on agentic the signed payment presentation. Securing the decision to that instant is what stops a model from deciding before the customer has authenticated.
+
+`txn_initiated` and `collect_requested` stay distinct — the direction-inversion deception at the heart of F5 is only visible if a payer-initiated push and a payee-raised collect are distinguishable at the event level.
 
 ### 3.2 Authentication events
 `pin_entered`, `otp_issued`, `otp_entered`, `biometric_presented`, `mandate_signed`, `device_bound`
@@ -72,9 +74,10 @@ Payload: `linked_txn_id`, `reason_code`, `days_since_txn`, `outcome`.
 ### 3.6 Agent events (F10)
 `agent_intent_declared`, `agent_cart_built`, `agent_payment_presented`, `agent_signature_presented`
 
-Payload: `agent_id`, `intent_mandate`, `cart_mandate`, `signature_valid`, `registry_hit`.
+Protocol payload (network surface, carried forward into the authorisation request):
+`agent_id`, `principal_id`, `cart_total_inr`, `counterparty_id`, `item_count`, `agent_provisioned_at`.
 
-Signature validity and Intent↔Cart consistency are **deterministic policy checks**, not model features. The model sees only what remains ambiguous after those pass.
+Delegation itself (`delegate_added`) stays on `psp_app` — the network learns agent provenance only through what the signed protocol carries forward. Signature validity and Intent↔Cart consistency are **deterministic policy checks**, not model features: F10's manipulation happens upstream of the declared intent, so every check passes by construction and the model's job is the behavioural residue (agent fan-out across principals, delegate age, pacing).
 
 ## 4. Feature layer
 
