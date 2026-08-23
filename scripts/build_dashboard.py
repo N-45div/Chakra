@@ -188,6 +188,71 @@ def table(headers, rows):
 # report panels
 # --------------------------------------------------------------------------
 
+def headline_panel(fams):
+    """One table, every family, the headline metrics — the page a judge
+    screenshots. Medians across seeds; families without full-length runs are
+    marked with their seed count instead of being quietly omitted."""
+    if not fams:
+        return "<section class='panel'><p class='empty'>No loop runs found in runs/.</p></section>"
+    rows = []
+    for fam, runs in sorted(fams.items()):
+        audits = [r["score"].get("metrics", {}) for r in runs if r.get("score", {}).get("metrics")]
+        if not audits:
+            rows.append([fam, FAMILY_NAMES.get(fam, fam), "—", "—", "—", "—", "—", "—"])
+            continue
+        rows.append(
+            [
+                fam,
+                FAMILY_NAMES.get(fam, fam),
+                f"{len(audits)} seeds",
+                f"{med([m.get('auprc') for m in audits]):.4f}",
+                f"{med([m.get('recall_at_0_5pct_fpr') for m in audits]):.4f}",
+                f"{med([m.get('achieved_fpr_at_0_5pct_cut') for m in audits]):.4%}",
+                f"{med([m.get('value_weighted_recall') for m in audits]):.3f}",
+                f"{med([m.get('false_alerts_per_million') for m in audits]):,.0f}",
+            ]
+        )
+    tbl = table(
+        ["code", "family", "seeds", "AUPRC", "recall @frozen cut", "realised FPR",
+         "value-weighted recall", "false alerts / million"],
+        rows,
+    )
+    return f"""
+    <section class="panel">
+      <header class="panel-head">
+        <div>
+          <h3>Headline — locked audits, median across seeds</h3>
+          <p class="sub">Thresholds frozen on calibration data at the 0.5% false-positive
+          budget; the realised FPR is what that cut actually spent. AUPRC is quoted with the
+          prevalence it was measured at inside each family panel.</p>
+        </div>
+      </header>
+      {tbl}
+      <p class="note">Families with fewer than 20 seeds are mid-batch. The registered
+      protocol (docs/EXPERIMENT_CONTRACT.md) fixes seeds 1000–1019 x 10 generations per
+      family; no seed selected for presentation, no run discarded.</p>
+    </section>"""
+
+
+PITCH = """
+<section class="panel">
+  <header class="panel-head">
+    <div>
+      <h3>The pitch</h3>
+      <p class="sub">Not &ldquo;our detector catches fraud&rdquo; — everyone in that room knows the
+      clean curves are usually wrong.</p>
+    </div>
+  </header>
+  <p class="note"><strong>A red-team lab whose distinguishing property is that it catches its
+  own errors.</strong> This dashboard shows a detector built to lose to its own attacker and a
+  paper trail of every time the machinery caught a false claim before it reached a judge —
+  three retractions, each with the mechanism that caused it, and a sealed-audit protocol that
+  makes a published number re-verifiable from the artifact it came from. For a security
+  audience, that ledger is worth more than a smooth curve.</p>
+</section>
+"""
+
+
 def family_panel(fam, runs):
     name = FAMILY_NAMES.get(fam, fam)
     rail = FAMILY_RAIL.get(fam, "-")
@@ -241,12 +306,13 @@ def family_panel(fam, runs):
     a_recall = med([m.get("recall_at_0_5pct_fpr") for m in audits]) if audits else None
     a_fpr = med([m.get("achieved_fpr_at_0_5pct_cut") for m in audits]) if audits else None
     vwr = med([m.get("value_weighted_recall") for m in audits]) if audits else None
+    fapm = med([m.get("false_alerts_per_million") for m in audits]) if audits else None
 
     audit_line = (
         f"sealed audit — AUPRC {auprc:.4f} @ prevalence {med([m.get('prevalence') for m in audits]):.4%}, "
         f"recall {a_recall:.4f} at a frozen cut realising {a_fpr:.4%} FPR, "
-        f"value-weighted recall {vwr:.3f}"
-        if None not in (auprc, a_recall, a_fpr, vwr)
+        f"value-weighted recall {vwr:.3f}, {fapm:,.0f} false alerts per million"
+        if None not in (auprc, a_recall, a_fpr, vwr, fapm)
         else "sealed audit — not yet scored"
     )
 
@@ -602,7 +668,7 @@ function draw(){
     if(!pts.length)continue;
     const path=el('path',{d:pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' '),'class':'ln '+cls});
     svg.appendChild(path);
-    for(const [x,y] of pts)svg.appendChild(el('circle',{cx:x,cy:y,r:3,'class':'pt '+cls.slice(3)}));
+    for(const [x,y] of pts)svg.appendChild(el('circle',{cx:x,cy:y,r:3,'class':'pt pt-'+cls.slice(3)}));
     const e=pts[pts.length-1];svg.appendChild(txt(e[0]+8,e[1]+4,label,'endlbl'));
   }
   // current generation: yield + evasion as a right-side stat strip
@@ -661,6 +727,12 @@ function togglePlay(){
   else clearInterval(timer);
 }
 window.addEventListener('DOMContentLoaded',()=>{if(!curFam)return;famTabs();seedSel();draw();});
+function toggleTheme(){
+  const r=document.documentElement;
+  r.setAttribute('data-theme', r.getAttribute('data-theme')==='dark'?'light':'dark');
+  const b=document.getElementById('theme-btn');
+  if(b)b.textContent=r.getAttribute('data-theme')==='dark'?'light mode':'dark mode';
+}
 """
 
 
@@ -681,7 +753,7 @@ def replay_panel():
         </div>
       </header>
       <div class="rep-body">
-        <svg id="replay-chart" viewBox="0 0 560 320" role="img" class="chart" preserveAspectRatio="none"></svg>
+        <svg id="replay-chart" viewBox="0 0 560 320" role="img" class="chart"></svg>
         <div id="rep-stats" class="rep-stats"></div>
       </div>
       <div id="rep-params" class="params"></div>
@@ -706,7 +778,6 @@ def build():
     panels = "".join(family_panel(f, r) for f, r in sorted(fams.items()))
     if not panels:
         panels = "<section class='panel'><p class='empty'>No loop runs found in runs/.</p></section>"
-
     registered = all(
         len(runs) >= 20 and max((len(r["gens"]) for r in runs), default=0) >= 10
         for runs in fams.values()
@@ -812,6 +883,9 @@ border:1px solid var(--line);border-radius:4px;padding:6px 10px;font-size:.82rem
 background:var(--bg);padding:4px 10px;border-radius:999px;color:var(--ink2)}
 .hint{font-size:.76rem;color:var(--muted);width:100%}
 #rep-seed-note{color:var(--muted);font-size:.85rem;margin:.4rem 0 14px}
+#theme-btn{position:absolute;top:14px;right:20px;font:inherit;font-size:.8rem;
+padding:4px 12px;border:1px solid var(--line);background:var(--surface);
+color:var(--ink2);border-radius:999px;cursor:pointer}
 footer{color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);
 padding-top:18px;margin-top:26px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -823,7 +897,8 @@ padding-top:18px;margin-top:26px}
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Chakra — adversarial fraud range</title>
 <style>{css}</style></head>
-<body><div class="wrap">
+<body><button id="theme-btn" onclick="toggleTheme()" aria-label="toggle colour theme">dark mode</button>
+<div class="wrap">
 <header class="top">
   <h1>Chakra</h1>
   <p class="lede">A closed-loop adversarial fraud range for Indian payment rails. An attacker
@@ -839,7 +914,11 @@ padding-top:18px;margin-top:26px}
   {LOOP_SVG}
 </section>
 
+{PITCH}
+
 {replay_panel()}
+
+{headline_panel(fams)}
 
 {taxonomy_panel()}
 

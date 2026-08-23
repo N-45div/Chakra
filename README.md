@@ -46,7 +46,7 @@ Three lanes, never conflated:
 The registered protocol is fixed in [`docs/EXPERIMENT_CONTRACT.md`](docs/EXPERIMENT_CONTRACT.md): 20 seeds (1000–1019), 10 generations, five families, median and interquartile range across all seeds, no seed selected for presentation, no run discarded. Execute it with:
 
 ```
-python scripts/run_registered.py --workers 8
+python scripts/run_registered.py --workers 5
 ```
 
 Every number flows from the sealed run artifacts into the [dashboard](dashboard/index.html) and the walkthrough document:
@@ -114,4 +114,4 @@ pip install -e .[dev]
 pytest -q
 ```
 
-75 checks cover the load-bearing guarantees: no feature injection by attacks, truth isolation, availability discipline, stream separation, threshold honesty, determinism, and per-family mechanics for F5, F6, F8, F10 and F11.
+76 checks cover the load-bearing guarantees: no feature injection by attacks, truth isolation, availability discipline, stream separation, threshold honesty, determinism, and per-family mechanics for F5, F6, F8, F10 and F11.
