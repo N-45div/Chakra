@@ -53,6 +53,18 @@ AGENTIC_ADOPTION_RATE = 0.35
 # ASSUMPTION.
 AGENT_ACQUISITION_COST_INR = 2500.0
 
+# The genuine agent market is SHARED: a handful of popular assistants each
+# serve many consumers, rather than one personal agent per person. F-009
+# documented why this matters — with a 1:1 population the agent fan-out
+# feature is a point mass on every genuine row and `> 1` is a free fraud flag.
+# This share sets how concentrated the provider pool is. ASSUMPTION.
+AGENT_PROVIDER_SHARE = 0.08
+
+# Share of adopting consumers whose delegation begins DURING the simulated
+# window (fresh delegations) versus before it (established assistants). Real
+# adoption churns; without it, delegate age is another free flag. ASSUMPTION.
+AGENT_ADOPTION_INSIDE_WINDOW_RATE = 0.30
+
 # Instrument churn in the genuine population.
 #
 # Without churn, every consumer uses one instrument for the whole window, so

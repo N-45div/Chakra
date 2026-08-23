@@ -63,6 +63,10 @@ def generate_background(
             frac = min(1.0, max(0.0, (m.created_at - start).total_seconds() / 86400.0))
             m.created_at = start + timedelta(days=frac * days * 0.9)
 
+    # Shared genuine agent pool, built once for the whole world (F-009).
+    agent_pool = _genuine_agent_pool(rng, pop, len(consumers))
+    assign_rng = rng.spawn("genuine_agent_assign")
+
     for cons in consumers:
         # A small circle of people this consumer actually pays. Genuine P2P is
         # repeated payments to known contacts, which is exactly the baseline a
@@ -125,7 +129,7 @@ def generate_background(
                 if not agent_adopted:
                     continue
                 if agent_state is None:
-                    agent_state = _provision_agent(rng, pop, cons, when)
+                    agent_state = _assign_agent(assign_rng, agent_pool, cons, start, horizon)
                 if when < agent_state["provisioned_at"]:
                     continue
                 _emit_agentic_txn(log, rng, cons, vpas[0], favourites, when,
@@ -176,33 +180,66 @@ def _additional_vpa(rng: Rng, pop: Population, consumer, when):
     )
 
 
-def _provision_agent(rng: Rng, pop: Population, consumer, when: datetime) -> dict:
-    """A consumer's shopping assistant, registered once at adoption.
+def _register_genuine_agent(pool_rng: Rng, pop: Population, created_at: datetime) -> "AgentIdentity":
+    """Register one genuine assistant provider into the shared pool.
 
-    Built through the SAME entity generator as everything else and added to the
-    population like any other identity. `registry_entry=True` because a
-    directory-listed assistant is the normal case — which is exactly why F10's
-    fake agents are also registry-listed: the attacker registers theirs through
-    the same door. If only honest agents were listed, "in the directory" would
-    be a free fraud flag and the family would test nothing.
+    These are REAL market agents: a handful of popular assistants each serving
+    many consumers. Sharing is the fix for F-009 — when every genuine consumer
+    was bound 1:1 to a personal agent, `agent_distinct_principals_24h` was a
+    point mass at 1.0 on every genuine row, and `> 1` caught most fraud at zero
+    false positives for purely structural reasons. A cliff is not a trade and
+    gives the loop nothing to search. Shared providers put genuine fan-out back
+    into the population so the feature is a gradient again.
     """
     from chakra.schema.entities import AgentIdentity
 
-    agent = pop.add_agent(
+    return pop.add_agent(
         AgentIdentity(
-            agent_id=rng.uid("agent"),
+            agent_id=pool_rng.uid("agent"),
             registry_entry=True,
-            pubkey_id=rng.uid("pk"),
+            pubkey_id=pool_rng.uid("pk"),
             scope_merchants=frozenset(),
             scope_max_amount=float("inf"),
         )
     )
-    # Delegation happens in the consumer's app, BEFORE anything reaches the
-    # network — psp_app surface, so a network-surface model cannot read it and
-    # must instead rely on what the protocol carries forward.
+
+
+def _genuine_agent_pool(rng: Rng, pop: Population, n_consumers: int):
+    """A shared pool of genuine agent providers, built through a SPAWNED stream.
+
+    Spawning matters twice: the pool must not perturb the parent stream's draw
+    sequence (card and UPI backgrounds stay bit-identical), and the pool must
+    be identical across the sizing and placement passes of _build_stream.
+    """
+    pool_rng = rng.spawn("genuine_agent_pool")
+    n_pool = max(2, int(round(n_consumers * C.AGENT_PROVIDER_SHARE)))
+    base = datetime(2020, 1, 1)
+    return [
+        _register_genuine_agent(
+            pool_rng, pop, created_at=base + timedelta(days=pool_rng.uniform(0, 4000))
+        )
+        for _ in range(n_pool)
+    ]
+
+
+def _assign_agent(assign_rng: Rng, agent_pool: list, consumer, start: datetime, horizon: datetime) -> dict:
+    """Which shared agent this consumer uses, and when they adopted it.
+
+    Adoption timing models real churn: some consumers adopted long before the
+    window (established assistants with history), some mid-window (fresh
+    delegations). Both populating the same rail is what makes delegate age a
+    learnable signal instead of a free fraud flag.
+    """
+    identity = agent_pool[assign_rng.integers(0, len(agent_pool))]
+    if assign_rng.uniform(0, 1) < C.AGENT_ADOPTION_INSIDE_WINDOW_RATE:
+        provisioned_at = start + timedelta(
+            seconds=assign_rng.uniform(0, max(1.0, (horizon - start).total_seconds() * 0.8))
+        )
+    else:
+        provisioned_at = start - timedelta(seconds=assign_rng.uniform(86400, 200 * 86400))
     return {
-        "identity": agent,
-        "provisioned_at": when,
+        "identity": identity,
+        "provisioned_at": provisioned_at,
         "consumer_party_id": consumer.party_id,
         "emitted_delegate": False,
     }

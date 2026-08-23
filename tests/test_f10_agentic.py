@@ -143,3 +143,34 @@ def test_delegate_added_never_network_visible():
     delegates = [e for e in ev if e.event_type is EventType.DELEGATE_ADDED]
     assert delegates
     assert all(e.surface is Surface.PSP_APP for e in delegates)
+
+
+def test_genuine_agents_are_shared_not_personal():
+    """F-009: with a 1:1 genuine agent population, agent fan-out is a point
+    mass and `> 1` is a cost-free structural fraud flag. Genuine providers
+    must serve multiple principals so the feature is a real trade."""
+    rng = Rng(77)
+    pop = build_population(rng, n_consumers=300, n_merchants=25, world_start=WORLD)
+    log = generate_background(rng, pop, start=WORLD, days=10.0, only_rail="agentic")
+    principal_by_agent: dict[str, set] = {}
+    for e in log:
+        if e.event_type is EventType.TXN_AUTH_REQUESTED and e.payload.get("agent_id"):
+            principal_by_agent.setdefault(e.payload["agent_id"], set()).add(
+                e.payload["principal_id"]
+            )
+    assert len(principal_by_agent) > 1, "no genuine agentic traffic at all"
+    multi = {a: ps for a, ps in principal_by_agent.items() if len(ps) > 1}
+    assert multi, f"genuine agents are 1:1 again (F-009): {len(principal_by_agent)} providers"
+
+
+def test_genuine_adoption_churns_inside_the_window():
+    """Established and fresh delegations must coexist; if every genuine
+    delegation predates the world, delegate age is another free flag."""
+    rng = Rng(78)
+    pop = build_population(rng, n_consumers=300, n_merchants=25, world_start=WORLD)
+    log = generate_background(rng, pop, start=WORLD, days=10.0, only_rail="agentic")
+    delegates = [e for e in log if e.event_type is EventType.DELEGATE_ADDED]
+    before = sum(1 for e in delegates if e.ts < WORLD)
+    after = sum(1 for e in delegates if e.ts >= WORLD)
+    assert before > 0, "no pre-window (established) delegations"
+    assert after > 0, "no in-window (fresh) delegations — adoption never churns"
