@@ -49,34 +49,18 @@ appropriate `label_col`/`time_col` and it works unchanged.
 
 ## 4. Finish the registered runs (long, unattended)
 
-The contract is **20 seeds × 10 generations × 5 families**. Current state:
+**DONE — 100/100.** All five families completed 20 seeds × 10 generations:
 
-| Family | Completed seeds | Registered target |
+| Family | Status | Notes |
 |---|---|---|
-| F5  | 20 | 20 ✅ |
-| F8  | 10 | 20 |
-| F6  | 9  | 20 |
-| F11 | 3  | 20 |
-| F10 | 2  | 20 |
+| F5  | 20/20 ✅ | post-F-008 tree |
+| F8  | 20/20 ✅ | re-run after F-008 (first ten seeds optimised backwards) |
+| F6  | 20/20 ✅ | |
+| F11 | 20/20 ✅ | |
+| F10 | 20/20 ✅ | re-run after F-009 (shared genuine agents) |
 
-```bash
-cd C:/Users/DivijN/chakra
-./.venv/Scripts/python.exe scripts/run_registered.py --workers 4
-```
-
-Resumable and hash-keyed — safe to interrupt and restart. Any change to `chakra/`
-invalidates prior directories automatically, so it will not silently reuse stale results.
-
-**Then rebuild both artifacts:**
-
-```bash
-./.venv/Scripts/python.exe scripts/run_lofo.py
-./.venv/Scripts/python.exe scripts/build_dashboard.py
-./.venv/Scripts/python.exe scripts/build_walkthrough.py
-git add -A && git commit -m "run: registered protocol complete" && git push
-```
-
-Render auto-redeploys on push.
+LOFO re-run on the final tree; dashboard and walkthrough rebuilt; results
+analysis in `docs/FINDINGS.md` F-010.
 
 ---
 
@@ -92,61 +76,21 @@ podiums, that isn't good enough.
 
 ---
 
-## 6. CRITICAL — F8's ten seeds must be re-run
+## 6. F8's ten seeds were re-run (resolved)
 
-An adversarial review finished after I wrote this file and found a defect I then
-reproduced and fixed.
-
-`F8.episode_value_inr` reads `payload["phase"]` to separate nurture spend from
-burst extraction, but F8's **authorised** payload dropped that key — and the loop
-collects payloads from authorised events. Measured on the family's own output:
-
-```
-authorised events   : 38   (0 of 38 carried `phase`)
-rupees moved        : Rs 17,51,450.52
-episode_value_inr() : Rs 0.00        <-- before fix
-episode_value_inr() : Rs 13,67,280.68 <-- after fix
-```
-
-With value zero and infrastructure cost zero, F8's fitness was *minus its own
-spend* — maximised by attacking as little as possible, the exact opposite of a
-bust-out. **Every F8 generation run before the fix optimised backwards.**
-
-The test that certified the valuation hand-built its payloads, so it passed green
-on a code path the loop can never reach.
-
-**Fixed and pushed** (`phase` now propagates; a new test exercises the real emit
-path). But F8's ten completed seeds are invalid and need re-running:
-
-```bash
-cd C:/Users/DivijN/chakra
-rm -rf runs/F8_seed*
-./.venv/Scripts/python.exe scripts/run_registered.py --families F8 --workers 4
-```
-
-F8's **zero-shot LOFO number is unaffected** — that path never calls
-`episode_value_inr`.
+Fixed in commit `91b51c2` and re-run: all 20 F8 seeds are post-fix, and F-008
+records the defect and its measurement in `docs/FINDINGS.md`. Nothing further
+to do.
 
 ---
 
-## 7. F10 — agent fan-out is not a real trade (open, not fixed)
+## 7. F10 — agent fan-out is now a real trade (resolved)
 
-Every genuine consumer is bound 1:1 to one agent forever, so
-`agent_distinct_principals_24h` is a point mass at 1.0 on all genuine rows. The
-rule `> 1` catches ~75% of fraud at **exactly zero** false positives — for
-structural reasons, not fraud reasons.
-
-The verifier established two limits: it is a **cliff, not a gradient** (any value
-above 1 is instantly fatal, so the only playable setting is 1 and the loop has
-nothing to search), and it is **not load-bearing** — ablating all three
-agent-identity features still leaves recall 1.000 and AUPRC 0.897–0.924, because
-separation is carried by payee and instrument novelty.
-
-**So F10's headline numbers stand.** What does not stand is any claim that agent
-fan-out represents a learnable rotation-economics trade. Either fix the genuine
-population to share and rotate agents, or drop that claim from the deck.
-
-Both are recorded as F-008 and F-009 in `docs/FINDINGS.md`.
+Fixed: the genuine population draws assistants from a shared provider pool with
+adoption churn (commit after `91b51c2`), F10's 20 seeds re-run, and F-009's
+status updated in `docs/FINDINGS.md`. Both claims — the cliff and the
+non-load-bearing ablation — were addressed by the population fix; the headline
+numbers in F-010 are the post-fix runs.
 
 ---
 

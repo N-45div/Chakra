@@ -1,0 +1,182 @@
+[
+  {
+    "generation": 0,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 0.9767441860465116,
+    "fpr_pre": 0.00403324971718066,
+    "fpr_post": 0.004229993605823619,
+    "prevalence": 0.00421217612773669,
+    "n_episodes": 30,
+    "best_params": {
+      "victims_per_agent": 24.0,
+      "amount_ratio": 0.8615152632607459,
+      "victims_per_campaign": 18.0,
+      "inter_victim_seconds": 5487.101295441393,
+      "delegate_age_seconds": 141999.70061102652
+    }
+  },
+  {
+    "generation": 1,
+    "episode_evasion": 0.0,
+    "attacker_yield": 170.57856666666666,
+    "recall_pre": 0.9865771812080537,
+    "recall_post": 1.0,
+    "fpr_pre": 0.0030281494299045208,
+    "fpr_post": 0.0049439174365788095,
+    "prevalence": 0.004582923228346456,
+    "n_episodes": 30,
+    "best_params": {
+      "victims_per_agent": 24.0,
+      "amount_ratio": 0.8615152632607459,
+      "victims_per_campaign": 18.0,
+      "inter_victim_seconds": 5487.101295441393,
+      "delegate_age_seconds": 141999.70061102652
+    }
+  },
+  {
+    "generation": 2,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.005133226514746899,
+    "fpr_post": 0.0040650406504065045,
+    "prevalence": 0.004607478291688818,
+    "n_episodes": 30,
+    "best_params": {
+      "victims_per_agent": 19.0,
+      "amount_ratio": 0.4,
+      "victims_per_campaign": 3.0,
+      "inter_victim_seconds": 3494.7077006873287,
+      "delegate_age_seconds": 60182.72679481531
+    }
+  },
+  {
+    "generation": 3,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.004262067598374468,
+    "fpr_post": 0.005880992500082598,
+    "prevalence": 0.00414569144210838,
+    "n_episodes": 30,
+    "best_params": {
+      "victims_per_agent": 19.0,
+      "amount_ratio": 0.4,
+      "victims_per_campaign": 3.0,
+      "inter_victim_seconds": 3494.7077006873287,
+      "delegate_age_seconds": 60182.72679481531
+    }
+  },
+  {
+    "generation": 4,
+    "episode_evasion": 0.0,
+    "attacker_yield": 242.17520000000002,
+    "recall_pre": 1.0,
+    "recall_post": 0.9906542056074766,
+    "fpr_pre": 0.0053509600251809885,
+    "fpr_post": 0.005211065645437695,
+    "prevalence": 0.0037282229965156797,
+    "n_episodes": 30,
+    "best_params": {
+      "victims_per_agent": 25.0,
+      "amount_ratio": 1.0675365429669734,
+      "victims_per_campaign": 20.0,
+      "inter_victim_seconds": 2960.793799940226,
+      "delegate_age_seconds": 90700.620481222
+    }
+  },
+  {
+    "generation": 5,
+    "episode_evasion": 0.0,
+    "attacker_yield": 662.23925,
+    "recall_pre": 1.0,
+    "recall_post": 0.9897959183673469,
+    "fpr_pre": 0.003834463408931494,
+    "fpr_post": 0.002525134440028057,
+    "prevalence": 0.004561746497230368,
+    "n_episodes": 30,
+    "best_params": {
+      "victims_per_agent": 19.0,
+      "amount_ratio": 0.4,
+      "victims_per_campaign": 3.0,
+      "inter_victim_seconds": 3494.7077006873287,
+      "delegate_age_seconds": 60182.72679481531
+    }
+  },
+  {
+    "generation": 6,
+    "episode_evasion": 0.0,
+    "attacker_yield": 23.128216666666667,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.004509108398965911,
+    "fpr_post": 0.005891901641315457,
+    "prevalence": 0.0041908639166616775,
+    "n_episodes": 30,
+    "best_params": {
+      "victims_per_agent": 19.0,
+      "amount_ratio": 0.4,
+      "victims_per_campaign": 3.0,
+      "inter_victim_seconds": 3494.7077006873287,
+      "delegate_age_seconds": 60182.72679481531
+    }
+  },
+  {
+    "generation": 7,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.00427827380952381,
+    "fpr_post": 0.005518353174603175,
+    "prevalence": 0.004137079345476999,
+    "n_episodes": 30,
+    "best_params": {
+      "victims_per_agent": 19.0,
+      "amount_ratio": 0.4,
+      "victims_per_campaign": 3.0,
+      "inter_victim_seconds": 3494.7077006873287,
+      "delegate_age_seconds": 60182.72679481531
+    }
+  },
+  {
+    "generation": 8,
+    "episode_evasion": 0.0,
+    "attacker_yield": 311.61255,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.0039928698752228165,
+    "fpr_post": 0.005989304812834224,
+    "prevalence": 0.004189150809429139,
+    "n_episodes": 30,
+    "best_params": {
+      "victims_per_agent": 19.0,
+      "amount_ratio": 0.4,
+      "victims_per_campaign": 3.0,
+      "inter_victim_seconds": 3494.7077006873287,
+      "delegate_age_seconds": 60182.72679481531
+    }
+  },
+  {
+    "generation": 9,
+    "episode_evasion": 0.0,
+    "attacker_yield": 549.3751166666666,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.008185367082231457,
+    "fpr_post": 0.005163077698022919,
+    "prevalence": 0.004263322884012539,
+    "n_episodes": 30,
+    "best_params": {
+      "victims_per_agent": 19.0,
+      "amount_ratio": 0.4,
+      "victims_per_campaign": 3.0,
+      "inter_victim_seconds": 3494.7077006873287,
+      "delegate_age_seconds": 60182.72679481531
+    }
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "digest": "54cda19850a6e716284867e46d64cc4e3cf3673cf2d1e3673933ea0060fada8c",
+  "digested_columns": [
+    "event_id",
+    "amount_inr",
+    "family",
+    "rail"
+  ],
+  "created_at": "2026-02-01T00:00:00",
+  "seed": 1000,
+  "family": "F8",
+  "rail": "card",
+  "n_rows": 47637,
+  "n_fraud": 192,
+  "prevalence": 0.0040304805088481645
+}

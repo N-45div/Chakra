@@ -1,0 +1,24 @@
+{
+  "threshold": 0.09553777122597029,
+  "metrics": {
+    "auprc": 0.9701155017857662,
+    "auc_roc": 0.9987669284700327,
+    "recall_at_0_1pct_fpr": 0.8813559322033898,
+    "recall_at_0_5pct_fpr": 0.9661016949152542,
+    "false_alerts_per_million": 309.909351514682,
+    "value_weighted_recall": 0.996653231488821,
+    "worst_family_recall": 0.9661016949152542,
+    "achieved_fpr_at_0_1pct_cut": 0.0,
+    "achieved_fpr_at_0_5pct_cut": 0.000309909351514682,
+    "per_family_recall": {
+      "F10": 0.9661016949152542
+    },
+    "n": 12966,
+    "n_fraud": 59,
+    "prevalence": 0.004550362486503162
+  },
+  "audit_digest": "1be55c36463f22f9ec3311bb75da364b8ada425a66b23b90111ba78e4b1cc603",
+  "code_version": "2e9450c-ea863ea4",
+  "seed": 1019,
+  "family": "F10"
+}

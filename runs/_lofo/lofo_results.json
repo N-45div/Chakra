@@ -12,13 +12,13 @@
       "cal_rows": 28385,
       "target_rows": 29903,
       "target_fraud": 121,
-      "threshold": 0.08770400910073828,
-      "auprc": 0.553403758778059,
-      "auc_roc": 0.9984099331172914,
-      "recall_at_cut": 0.9752066115702479,
-      "achieved_fpr_at_cut": 0.004935867302397421,
-      "baseline_recall_at_cut": 0.0,
-      "baseline_auprc": 0.0020427494754164444
+      "threshold": 0.08809013186859771,
+      "auprc": 0.5306777328575285,
+      "auc_roc": 0.9983827382561212,
+      "recall_at_cut": 0.9834710743801653,
+      "achieved_fpr_at_cut": 0.004801557988046471,
+      "baseline_recall_at_cut": 0.36363636363636365,
+      "baseline_auprc": 0.24606012625229906
     },
     "F5": {
       "defined": true,
@@ -30,13 +30,13 @@
       "cal_rows": 62114,
       "target_rows": 20886,
       "target_fraud": 87,
-      "threshold": 0.08393464287518804,
-      "auprc": 0.8216618570421578,
-      "auc_roc": 0.9942122548995227,
+      "threshold": 0.0839945288524141,
+      "auprc": 0.7779840364290863,
+      "auc_roc": 0.9946687313105792,
       "recall_at_cut": 0.8505747126436781,
       "achieved_fpr_at_cut": 0.005000240396172893,
-      "baseline_recall_at_cut": 0.8850574712643678,
-      "baseline_auprc": 0.6003870316103715
+      "baseline_recall_at_cut": 0.9080459770114943,
+      "baseline_auprc": 0.6679833575113248
     },
     "F6": {
       "defined": true,
@@ -48,13 +48,13 @@
       "cal_rows": 19993,
       "target_rows": 55081,
       "target_fraud": 231,
-      "threshold": 0.08286373015105497,
-      "auprc": 0.6133794813910194,
-      "auc_roc": 0.9630159387862214,
-      "recall_at_cut": 0.6017316017316018,
-      "achieved_fpr_at_cut": 0.005597082953509571,
+      "threshold": 0.08306178727738078,
+      "auprc": 0.6355596434216795,
+      "auc_roc": 0.9649445358652287,
+      "recall_at_cut": 0.6233766233766234,
+      "achieved_fpr_at_cut": 0.004977210574293528,
       "baseline_recall_at_cut": 0.9913419913419913,
-      "baseline_auprc": 0.9806098482165798
+      "baseline_auprc": 0.9786887003402095
     },
     "F8": {
       "defined": true,
@@ -66,13 +66,13 @@
       "cal_rows": 28806,
       "target_rows": 26845,
       "target_fraud": 109,
-      "threshold": 0.08426148050440685,
-      "auprc": 0.03138334460906671,
-      "auc_roc": 0.9131396557025129,
-      "recall_at_cut": 0.01834862385321101,
+      "threshold": 0.0846690314704226,
+      "auprc": 0.03420714395612681,
+      "auc_roc": 0.906372159449651,
+      "recall_at_cut": 0.05504587155963303,
       "achieved_fpr_at_cut": 0.0045631358467983245,
       "baseline_recall_at_cut": 0.0,
-      "baseline_auprc": 0.0022441101086082132
+      "baseline_auprc": 0.0023199917719803056
     },
     "F10": {
       "defined": false,

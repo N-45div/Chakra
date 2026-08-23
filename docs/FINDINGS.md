@@ -370,9 +370,89 @@ And it is **not load-bearing** — ablating all three agent-identity features
 still leaves recall 1.000 and AUPRC 0.897–0.924, because separation is carried
 by payee and instrument novelty.
 
-**Status: open.** F10's headline numbers stand; the claim that agent fan-out
-represents a learnable rotation-economics trade does not. Fix is to give the
-genuine population agent sharing and rotation.
+**Status: FIXED.** The genuine population now draws its assistants from a
+shared provider pool (`AGENT_PROVIDER_SHARE = 0.08`, so a popular assistant
+serves many consumers) and adoption churns across the window
+(`AGENT_ADOPTION_INSIDE_WINDOW_RATE = 0.30`), so agent fan-out and delegate
+age are real gradients again. Pool and assignment draws use `rng.spawn`, so
+card/UPI backgrounds are bit-identical to pre-fix streams. Two tests pin the
+repair. F10's 20 registered seeds were re-run under the fixed population; the
+numbers in F-010 are those runs.
+
+---
+
+## F-010 · The registered protocol, complete (20 seeds × 10 generations × 5 families)
+
+The first full execution of the pre-registered contract. Every family finished
+its 20 seeds and 10 generations; thresholds frozen on calibration data; the
+locked audit stream scored once per seed; medians with interquartile range,
+no seed selected and no run discarded.
+
+Code versions: F5/F6/F11 ran on the post-F-008 tree; F8 re-ran entirely after
+F-008 (its first ten seeds optimised backwards and are not counted anywhere);
+F10 re-ran entirely after F-009. The differing code labels between runs are
+cosmetic — each change was confined to the family named beside it, and the
+run-directory naming scheme exists precisely so that a score can never be
+attributed to different source than the audit beside it.
+
+### What the audits say
+
+| Family | AUPRC med [IQR] | recall @ frozen 0.5% cut | realised FPR | value-weighted recall | false alerts per million |
+|---|---|---|---|---|---|
+| F10 | 0.985 [0.967 – 0.998] | 0.961 [0.702 – 0.991] | 0.007% | 0.965 | 67 |
+| F11 | 0.948 [0.922 – 0.955] | 0.940 [0.926 – 0.948] | 0.096% | 0.929 | 959 |
+| F5 | 0.878 [0.849 – 0.937] | 0.620 [0.189 – 0.761] | ~0.000% | 0.359 | ~0 |
+| F6 | 0.977 [0.849 – 0.998] | 0.496 [0.269 – 0.731] | ~0.000% | 0.581 | ~0 |
+| F8 | 0.376 [0.302 – 0.457] | 0.404 [0.335 – 0.472] | 0.293% | 0.903 | 2,932 |
+
+### The sayable claims
+
+- **F8 is the hard family, measurably and reproducibly.** Worst AUPRC, worst
+  recall, highest alert spend — yet the *highest* value-weighted recall of any
+  family. What it catches, it catches big. This matches zero-shot exactly:
+  see below.
+- **F10 is loud once the population is honest.** The pre-F-009 20-seed set and
+  the post-fix set are not comparable; the post-fix number is the registered
+  one, and the fan-out trade it ranks against is now a real gradient, not a
+  point-mass artifact.
+- **The loop contains before it adapts.** Final episode evasion is 0.000 on
+  every family and final attacker yield is near zero (F5 median ₹61/episode;
+  others ₹0). The registered outcome is therefore *containment*, not a
+  dramatic co-evolution curve — consistent with everything the development
+  pilots warned.
+- **Retraining helped only where there was room: F8.** Median Δ(post−pre)
+  recall on the frozen monitor batch: F8 +0.067, F6 +0.015, elsewhere ~0.
+  Where the detector already sits near its threshold budget, additional
+  feedback buys nothing; that flatness is the honest shape of the result.
+- **Value-weighted and row-level recall disagree on purpose.** F8: row recall
+  0.404, value recall 0.903. A ₹40 lakh bust-out is not a ₹400 one, and the
+  metrics refuse to average over that difference.
+
+### What may NOT be said
+
+- No family "learned an evasion strategy": evasion is zero, fitness gradients
+  are correspondingly flat, and per the standing rule (F-002/F-003) no
+  directional parameter claim is reportable without non-zero fitness.
+- F10's pre-fix and post-fix seeds must never be merged into one table; they
+  differ in the population model, not in labels.
+
+### Zero-shot, on the final tree
+
+| Held out | Trained on | AUPRC | recall @ frozen cut | logit baseline AUPRC |
+|---|---|---|---|---|
+| F11 | F8 | 0.531 | **0.983** | 0.246 |
+| F5 | F6 | 0.778 | 0.851 | 0.668 |
+| F6 | F5 | 0.636 | 0.623 | **0.979** |
+| F8 | F11 | 0.034 | 0.055 | 0.002 |
+| F10 | — | not defined (no agentic-rail sibling) | | |
+
+The asymmetry is the finding: enumeration is recognisable from bust-out's
+side (98.3%), bust-out is nearly invisible from enumeration's (5.5%). And F6
+adds a methodological result the baseline exists to produce: a boosted model
+fit to sibling structure transfers **worse** than a simple linear model. The
+booster learns the sibling's shape; at fraud prevalence, the humble model
+generalises. That is exactly why the contract mandates a baseline beside
+every figure.
 
 ---
 

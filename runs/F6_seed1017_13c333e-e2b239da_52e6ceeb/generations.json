@@ -1,0 +1,192 @@
+[
+  {
+    "generation": 0,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.0047982637345396545,
+    "fpr_post": 0.005138195225269984,
+    "prevalence": 0.004127442938426884,
+    "n_episodes": 30,
+    "best_params": {
+      "fan_in_per_mule": 28.0,
+      "dwell_seconds": 12510.016690666173,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 2.0,
+      "amount_jitter": 0.09900743715023927,
+      "inter_hop_seconds": 2058.712207304109
+    }
+  },
+  {
+    "generation": 1,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9893617021276596,
+    "recall_post": 0.9787234042553191,
+    "fpr_pre": 0.0055257065478530555,
+    "fpr_post": 0.005001528851614031,
+    "prevalence": 0.0040892678470439816,
+    "n_episodes": 30,
+    "best_params": {
+      "fan_in_per_mule": 28.0,
+      "dwell_seconds": 12510.016690666173,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 2.0,
+      "amount_jitter": 0.09900743715023927,
+      "inter_hop_seconds": 2058.712207304109
+    }
+  },
+  {
+    "generation": 2,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9671361502347418,
+    "recall_post": 0.9859154929577465,
+    "fpr_pre": 0.005307153965785381,
+    "fpr_post": 0.0047433903576982895,
+    "prevalence": 0.00412367142276344,
+    "n_episodes": 30,
+    "best_params": {
+      "fan_in_per_mule": 28.0,
+      "dwell_seconds": 12510.016690666173,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 2.0,
+      "amount_jitter": 0.09900743715023927,
+      "inter_hop_seconds": 2058.712207304109
+    }
+  },
+  {
+    "generation": 3,
+    "episode_evasion": 0.0,
+    "attacker_yield": 31.383333333333333,
+    "recall_pre": 0.9798994974874372,
+    "recall_post": 0.9899497487437185,
+    "fpr_pre": 0.004889925103678792,
+    "fpr_post": 0.005158148843543029,
+    "prevalence": 0.004089097110919327,
+    "n_episodes": 30,
+    "best_params": {
+      "fan_in_per_mule": 13.0,
+      "dwell_seconds": 27420.643215376756,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 2.0,
+      "amount_jitter": 0.0600034798919033,
+      "inter_hop_seconds": 2.0
+    }
+  },
+  {
+    "generation": 4,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9813953488372092,
+    "recall_post": 0.9813953488372092,
+    "fpr_pre": 0.006047642197374818,
+    "fpr_post": 0.005697617890131259,
+    "prevalence": 0.004163439194422928,
+    "n_episodes": 30,
+    "best_params": {
+      "fan_in_per_mule": 28.0,
+      "dwell_seconds": 12510.016690666173,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 2.0,
+      "amount_jitter": 0.09900743715023927,
+      "inter_hop_seconds": 2058.712207304109
+    }
+  },
+  {
+    "generation": 5,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9840255591054313,
+    "recall_post": 1.0,
+    "fpr_pre": 0.005007359899064242,
+    "fpr_post": 0.005270213437072863,
+    "prevalence": 0.004096805015641156,
+    "n_episodes": 30,
+    "best_params": {
+      "fan_in_per_mule": 28.0,
+      "dwell_seconds": 12510.016690666173,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 2.0,
+      "amount_jitter": 0.09900743715023927,
+      "inter_hop_seconds": 2058.712207304109
+    }
+  },
+  {
+    "generation": 6,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.005166780639769015,
+    "fpr_post": 0.0048932451941341845,
+    "prevalence": 0.004086265607264473,
+    "n_episodes": 30,
+    "best_params": {
+      "fan_in_per_mule": 28.0,
+      "dwell_seconds": 12510.016690666173,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 2.0,
+      "amount_jitter": 0.09900743715023927,
+      "inter_hop_seconds": 2058.712207304109
+    }
+  },
+  {
+    "generation": 7,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9852507374631269,
+    "recall_post": 0.9941002949852508,
+    "fpr_pre": 0.005399820415995277,
+    "fpr_post": 0.005498222610364211,
+    "prevalence": 0.004152478012690169,
+    "n_episodes": 30,
+    "best_params": {
+      "fan_in_per_mule": 28.0,
+      "dwell_seconds": 12510.016690666173,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 2.0,
+      "amount_jitter": 0.09900743715023927,
+      "inter_hop_seconds": 2058.712207304109
+    }
+  },
+  {
+    "generation": 8,
+    "episode_evasion": 0.0,
+    "attacker_yield": 11.050333333333333,
+    "recall_pre": 0.9944289693593314,
+    "recall_post": 1.0,
+    "fpr_pre": 0.005421184320266889,
+    "fpr_post": 0.004969418960244648,
+    "prevalence": 0.004141336071152538,
+    "n_episodes": 30,
+    "best_params": {
+      "fan_in_per_mule": 38.0,
+      "dwell_seconds": 5.0,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 4.0,
+      "amount_jitter": 0.1190449957630729,
+      "inter_hop_seconds": 2.0
+    }
+  },
+  {
+    "generation": 9,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9971830985915493,
+    "recall_post": 1.0,
+    "fpr_pre": 0.005398505749818488,
+    "fpr_post": 0.0051994285312785445,
+    "prevalence": 0.004139989970728522,
+    "n_episodes": 30,
+    "best_params": {
+      "fan_in_per_mule": 38.0,
+      "dwell_seconds": 5.0,
+      "layer_depth": 1.0,
+      "fan_out_per_mule": 4.0,
+      "amount_jitter": 0.1190449957630729,
+      "inter_hop_seconds": 2.0
+    }
+  }
+]

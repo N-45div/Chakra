@@ -1,0 +1,202 @@
+[
+  {
+    "generation": 0,
+    "episode_evasion": 0.0,
+    "attacker_yield": 236831.79485,
+    "recall_pre": 0.5325443786982249,
+    "recall_post": 0.5325443786982249,
+    "fpr_pre": 0.005008347245409015,
+    "fpr_post": 0.005755861759649167,
+    "prevalence": 0.004193340280879361,
+    "n_episodes": 30,
+    "best_params": {
+      "nurture_txn_count": 19.0,
+      "nurture_amount_inr": 785.32532261433,
+      "nurture_interval_seconds": 2994.769053988923,
+      "escalation_ratio": 1.2396616256985302,
+      "burst_count": 9.0,
+      "burst_amount_multiple": 13.200640568834546,
+      "inter_burst_seconds": 1353.7271604260163
+    }
+  },
+  {
+    "generation": 1,
+    "episode_evasion": 0.03333333333333333,
+    "attacker_yield": 16038.671533333334,
+    "recall_pre": 0.4039408866995074,
+    "recall_post": 0.6009852216748769,
+    "fpr_pre": 0.004694088630758215,
+    "fpr_post": 0.005111782958071446,
+    "prevalence": 0.004021474276431783,
+    "n_episodes": 30,
+    "best_params": {
+      "nurture_txn_count": 14.0,
+      "nurture_amount_inr": 2300.1876590767088,
+      "nurture_interval_seconds": 1768.1582408209094,
+      "escalation_ratio": 1.0417514664929142,
+      "burst_count": 4.0,
+      "burst_amount_multiple": 11.943318951299451,
+      "inter_burst_seconds": 392.9839431033187
+    }
+  },
+  {
+    "generation": 2,
+    "episode_evasion": 0.0,
+    "attacker_yield": 4951.387133333334,
+    "recall_pre": 0.3807531380753138,
+    "recall_post": 0.6736401673640168,
+    "fpr_pre": 0.00509985852005396,
+    "fpr_post": 0.004655677294113776,
+    "prevalence": 0.00391642769356821,
+    "n_episodes": 30,
+    "best_params": {
+      "nurture_txn_count": 24.0,
+      "nurture_amount_inr": 826.7287183482582,
+      "nurture_interval_seconds": 2989.5239603825794,
+      "escalation_ratio": 1.0,
+      "burst_count": 6.0,
+      "burst_amount_multiple": 13.083485854264612,
+      "inter_burst_seconds": 1545.1309499146028
+    }
+  },
+  {
+    "generation": 3,
+    "episode_evasion": 0.03333333333333333,
+    "attacker_yield": 36609.83631666667,
+    "recall_pre": 0.45689655172413796,
+    "recall_post": 0.6982758620689655,
+    "fpr_pre": 0.004975652943780434,
+    "fpr_post": 0.005276671093404161,
+    "prevalence": 0.004091205671257517,
+    "n_episodes": 30,
+    "best_params": {
+      "nurture_txn_count": 14.0,
+      "nurture_amount_inr": 2117.02551921485,
+      "nurture_interval_seconds": 3395.8312986948545,
+      "escalation_ratio": 1.0,
+      "burst_count": 9.0,
+      "burst_amount_multiple": 3.2111803871257116,
+      "inter_burst_seconds": 497.21654119500505
+    }
+  },
+  {
+    "generation": 4,
+    "episode_evasion": 0.0,
+    "attacker_yield": 1620.9460333333334,
+    "recall_pre": 0.41452991452991456,
+    "recall_post": 0.47435897435897434,
+    "fpr_pre": 0.005144306671633583,
+    "fpr_post": 0.005144306671633583,
+    "prevalence": 0.0041337643754306005,
+    "n_episodes": 30,
+    "best_params": {
+      "nurture_txn_count": 17.0,
+      "nurture_amount_inr": 2046.5347509078774,
+      "nurture_interval_seconds": 3405.42769195523,
+      "escalation_ratio": 1.2790761339106418,
+      "burst_count": 6.0,
+      "burst_amount_multiple": 3.0,
+      "inter_burst_seconds": 538.0936480369134
+    }
+  },
+  {
+    "generation": 5,
+    "episode_evasion": 0.0,
+    "attacker_yield": 8285.6691,
+    "recall_pre": 0.5043478260869565,
+    "recall_post": 0.6130434782608696,
+    "fpr_pre": 0.005149121511885428,
+    "fpr_post": 0.005315222205817215,
+    "prevalence": 0.004226853383320469,
+    "n_episodes": 30,
+    "best_params": {
+      "nurture_txn_count": 12.0,
+      "nurture_amount_inr": 508.54224273277305,
+      "nurture_interval_seconds": 1138.8950501881716,
+      "escalation_ratio": 1.0,
+      "burst_count": 5.0,
+      "burst_amount_multiple": 5.609304226002294,
+      "inter_burst_seconds": 345.31272963214553
+    }
+  },
+  {
+    "generation": 6,
+    "episode_evasion": 0.0,
+    "attacker_yield": 1899.8653166666666,
+    "recall_pre": 0.6177777777777778,
+    "recall_post": 0.72,
+    "fpr_pre": 0.005426884232601777,
+    "fpr_post": 0.005463676668077043,
+    "prevalence": 0.004122087058478675,
+    "n_episodes": 30,
+    "best_params": {
+      "nurture_txn_count": 12.0,
+      "nurture_amount_inr": 508.54224273277305,
+      "nurture_interval_seconds": 1138.8950501881716,
+      "escalation_ratio": 1.0,
+      "burst_count": 5.0,
+      "burst_amount_multiple": 5.609304226002294,
+      "inter_burst_seconds": 345.31272963214553
+    }
+  },
+  {
+    "generation": 7,
+    "episode_evasion": 0.0,
+    "attacker_yield": 1107.6582333333333,
+    "recall_pre": 0.6923076923076923,
+    "recall_post": 0.6978021978021978,
+    "fpr_pre": 0.004635074368730543,
+    "fpr_post": 0.004335293439409662,
+    "prevalence": 0.004179392380646198,
+    "n_episodes": 30,
+    "best_params": {
+      "nurture_txn_count": 12.0,
+      "nurture_amount_inr": 508.54224273277305,
+      "nurture_interval_seconds": 1138.8950501881716,
+      "escalation_ratio": 1.0,
+      "burst_count": 5.0,
+      "burst_amount_multiple": 5.609304226002294,
+      "inter_burst_seconds": 345.31272963214553
+    }
+  },
+  {
+    "generation": 8,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.805,
+    "recall_post": 0.91,
+    "fpr_pre": 0.005589986632640661,
+    "fpr_post": 0.005245675861789606,
+    "prevalence": 0.0040343728567394195,
+    "n_episodes": 30,
+    "best_params": {
+      "nurture_txn_count": 12.0,
+      "nurture_amount_inr": 508.54224273277305,
+      "nurture_interval_seconds": 1138.8950501881716,
+      "escalation_ratio": 1.0,
+      "burst_count": 5.0,
+      "burst_amount_multiple": 5.609304226002294,
+      "inter_burst_seconds": 345.31272963214553
+    }
+  },
+  {
+    "generation": 9,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9061032863849765,
+    "recall_post": 0.8544600938967136,
+    "fpr_pre": 0.005166149420937098,
+    "fpr_post": 0.006093407009310423,
+    "prevalence": 0.0040145503892040635,
+    "n_episodes": 30,
+    "best_params": {
+      "nurture_txn_count": 19.0,
+      "nurture_amount_inr": 120.0,
+      "nurture_interval_seconds": 900.0,
+      "escalation_ratio": 1.0474308092493032,
+      "burst_count": 4.0,
+      "burst_amount_multiple": 4.267465335512496,
+      "inter_burst_seconds": 1014.5351653383111
+    }
+  }
+]

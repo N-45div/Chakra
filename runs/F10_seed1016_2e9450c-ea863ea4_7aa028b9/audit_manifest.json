@@ -1,0 +1,16 @@
+{
+  "digest": "4dc52ae327b33661632383252bbb197c27eb0095b8298366933480683ac84a82",
+  "digested_columns": [
+    "event_id",
+    "amount_inr",
+    "family",
+    "rail"
+  ],
+  "created_at": "2026-02-01T00:00:00",
+  "seed": 1016,
+  "family": "F10",
+  "rail": "agentic",
+  "n_rows": 27413,
+  "n_fraud": 121,
+  "prevalence": 0.0044139641775799805
+}

@@ -1,0 +1,202 @@
+[
+  {
+    "generation": 0,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.004426907901068232,
+    "fpr_post": 0.005581753440477336,
+    "prevalence": 0.004121142419014759,
+    "n_episodes": 30,
+    "best_params": {
+      "cards_per_burst": 20.0,
+      "inter_txn_seconds": 17.105819487604844,
+      "micro_amount_inr": 53.0354967944958,
+      "decline_tolerance": 9.0,
+      "spread_seconds": 111.81794405630158,
+      "probes_per_device": 52.0,
+      "probes_per_endpoint": 8.0
+    }
+  },
+  {
+    "generation": 1,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9591836734693877,
+    "recall_post": 1.0,
+    "fpr_pre": 0.00586790960922219,
+    "fpr_post": 0.005202047525906197,
+    "prevalence": 0.004061839433000373,
+    "n_episodes": 30,
+    "best_params": {
+      "cards_per_burst": 32.0,
+      "inter_txn_seconds": 20.361022587145314,
+      "micro_amount_inr": 1.0,
+      "decline_tolerance": 7.0,
+      "spread_seconds": 147.11808556889193,
+      "probes_per_device": 60.0,
+      "probes_per_endpoint": 22.0
+    }
+  },
+  {
+    "generation": 2,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.0048647515202348505,
+    "fpr_post": 0.005577689243027889,
+    "prevalence": 0.004300985468515116,
+    "n_episodes": 30,
+    "best_params": {
+      "cards_per_burst": 32.0,
+      "inter_txn_seconds": 20.361022587145314,
+      "micro_amount_inr": 1.0,
+      "decline_tolerance": 7.0,
+      "spread_seconds": 147.11808556889193,
+      "probes_per_device": 60.0,
+      "probes_per_endpoint": 22.0
+    }
+  },
+  {
+    "generation": 3,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.005657343058985699,
+    "fpr_post": 0.005427603239331457,
+    "prevalence": 0.00408980408980409,
+    "n_episodes": 30,
+    "best_params": {
+      "cards_per_burst": 32.0,
+      "inter_txn_seconds": 20.361022587145314,
+      "micro_amount_inr": 1.0,
+      "decline_tolerance": 7.0,
+      "spread_seconds": 147.11808556889193,
+      "probes_per_device": 60.0,
+      "probes_per_endpoint": 22.0
+    }
+  },
+  {
+    "generation": 4,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.004443822387067427,
+    "fpr_post": 0.003953952202666294,
+    "prevalence": 0.004007806510071792,
+    "n_episodes": 30,
+    "best_params": {
+      "cards_per_burst": 32.0,
+      "inter_txn_seconds": 20.361022587145314,
+      "micro_amount_inr": 1.0,
+      "decline_tolerance": 7.0,
+      "spread_seconds": 147.11808556889193,
+      "probes_per_device": 60.0,
+      "probes_per_endpoint": 22.0
+    }
+  },
+  {
+    "generation": 5,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.004647836968180193,
+    "fpr_post": 0.004647836968180193,
+    "prevalence": 0.004075011868966609,
+    "n_episodes": 30,
+    "best_params": {
+      "cards_per_burst": 32.0,
+      "inter_txn_seconds": 20.361022587145314,
+      "micro_amount_inr": 1.0,
+      "decline_tolerance": 7.0,
+      "spread_seconds": 147.11808556889193,
+      "probes_per_device": 60.0,
+      "probes_per_endpoint": 22.0
+    }
+  },
+  {
+    "generation": 6,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.004720438619638197,
+    "fpr_post": 0.004251326707127569,
+    "prevalence": 0.0041170287316047655,
+    "n_episodes": 30,
+    "best_params": {
+      "cards_per_burst": 32.0,
+      "inter_txn_seconds": 20.361022587145314,
+      "micro_amount_inr": 1.0,
+      "decline_tolerance": 7.0,
+      "spread_seconds": 147.11808556889193,
+      "probes_per_device": 60.0,
+      "probes_per_endpoint": 22.0
+    }
+  },
+  {
+    "generation": 7,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9827586206896551,
+    "recall_post": 1.0,
+    "fpr_pre": 0.004372910006247014,
+    "fpr_post": 0.004666887149524125,
+    "prevalence": 0.004244575359508214,
+    "n_episodes": 30,
+    "best_params": {
+      "cards_per_burst": 32.0,
+      "inter_txn_seconds": 20.361022587145314,
+      "micro_amount_inr": 1.0,
+      "decline_tolerance": 7.0,
+      "spread_seconds": 147.11808556889193,
+      "probes_per_device": 60.0,
+      "probes_per_endpoint": 22.0
+    }
+  },
+  {
+    "generation": 8,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 1.0,
+    "recall_post": 1.0,
+    "fpr_pre": 0.005177841193257039,
+    "fpr_post": 0.0058250713424141684,
+    "prevalence": 0.004335217786109728,
+    "n_episodes": 30,
+    "best_params": {
+      "cards_per_burst": 32.0,
+      "inter_txn_seconds": 20.361022587145314,
+      "micro_amount_inr": 1.0,
+      "decline_tolerance": 7.0,
+      "spread_seconds": 147.11808556889193,
+      "probes_per_device": 60.0,
+      "probes_per_endpoint": 22.0
+    }
+  },
+  {
+    "generation": 9,
+    "episode_evasion": 0.0,
+    "attacker_yield": 0.0,
+    "recall_pre": 0.9938650306748467,
+    "recall_post": 1.0,
+    "fpr_pre": 0.005291929807044258,
+    "fpr_post": 0.005017348543471206,
+    "prevalence": 0.00405230708035004,
+    "n_episodes": 30,
+    "best_params": {
+      "cards_per_burst": 32.0,
+      "inter_txn_seconds": 20.361022587145314,
+      "micro_amount_inr": 1.0,
+      "decline_tolerance": 7.0,
+      "spread_seconds": 147.11808556889193,
+      "probes_per_device": 60.0,
+      "probes_per_endpoint": 22.0
+    }
+  }
+]
