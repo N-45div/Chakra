@@ -20,5 +20,8 @@ runs/_dev_pilot_archive.zip
 !runs/.gitkeep
 .ipynb_checkpoints/
 kaggle.json
+# Local working files, never part of the public tree
+private/
+docs/Walkthrough.docx
 chakra.egg-info/
 *.egg-info/
