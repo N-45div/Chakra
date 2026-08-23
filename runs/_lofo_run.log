@@ -1,0 +1,7 @@
+F11: F11 (siblings F8): AUPRC 0.553 | recall 0.975 at frozen cut (realised FPR 0.4936%) | logit baseline AUPRC 0.002   [18s]
+F5: F5 (siblings F6): AUPRC 0.822 | recall 0.851 at frozen cut (realised FPR 0.5000%) | logit baseline AUPRC 0.600   [38s]
+F6: F6 (siblings F5): AUPRC 0.613 | recall 0.602 at frozen cut (realised FPR 0.5597%) | logit baseline AUPRC 0.981   [27s]
+F8: F8 (siblings F11): AUPRC 0.031 | recall 0.018 at frozen cut (realised FPR 0.4563%) | logit baseline AUPRC 0.002   [35s]
+F10: NOT DEFINED (no sibling)
+
+written to C:\Users\DivijN\chakra\runs\_lofo\lofo_results.json

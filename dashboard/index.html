@@ -258,8 +258,14 @@ padding-top:18px;margin-top:26px}
       <p class="note">sealed audit — AUPRC 0.3074 @ prevalence 0.4160%, recall 0.4286 at a frozen cut realising 0.6424% FPR, value-weighted recall 0.806</p>
       <details><summary>Table view — every plotted value</summary><table><thead><tr><th>gen</th><th>recall pre</th><th>recall post</th><th>FPR legit</th><th>episode evasion</th><th>attacker yield</th><th>prevalence</th></tr></thead><tbody><tr><td>0</td><td>0.435</td><td>0.380</td><td>0.0052</td><td>0.000</td><td>₹0</td><td>0.0042</td></tr><tr><td>1</td><td>0.583</td><td>0.548</td><td>0.0051</td><td>0.000</td><td>₹0</td><td>0.0042</td></tr></tbody></table></details>
     </section>
-<section class="panel"><h3>Zero-shot (LOFO)</h3>
-        <p class="empty">no LOFO artifact present (python scripts/run_lofo.py).</p></section>
+
+    <section class="panel">
+      <h3>Zero-shot (LOFO) — the detector frozen, the family unseen</h3>
+      <p class="sub">Trained only on sibling families of the same rail; threshold frozen on
+      sibling-only calibration; one evaluation on the held-out family. F10 has no agentic-rail
+      sibling, so it receives no zero-shot number — absence of a number is the correct output.</p>
+      <table><thead><tr><th>held out</th><th>trained on</th><th>AUPRC</th><th>recall @frozen cut</th><th>logit baseline AUPRC</th></tr></thead><tbody><tr><td>F10</td><td>none</td><td>not defined — no within-rail sibling</td><td></td><td></td></tr><tr><td>F11</td><td>F8</td><td>0.5534</td><td>0.9752 (FPR 0.4936%)</td><td>0.0020</td></tr><tr><td>F5</td><td>F6</td><td>0.8217</td><td>0.8506 (FPR 0.5000%)</td><td>0.6004</td></tr><tr><td>F6</td><td>F5</td><td>0.6134</td><td>0.6017 (FPR 0.5597%)</td><td>0.9806</td></tr><tr><td>F8</td><td>F11</td><td>0.0314</td><td>0.0183 (FPR 0.4563%)</td><td>0.0022</td></tr></tbody></table>
+    </section>
 
     <section class="panel">
       <header class="panel-head">
