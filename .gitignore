@@ -13,6 +13,8 @@ runs/_batch.log
 runs/_registered.log
 runs/_registered.err
 runs/_registered_failures.json
+runs/_lofo.log
+runs/_lofo.err
 runs/**/*.tmp
 runs/_dev_pilot_archive.zip
 !runs/.gitkeep

@@ -218,7 +218,7 @@ def headline_panel(fams):
         rows,
     )
     return f"""
-    <section class="panel">
+    <section class="panel" id="headline">
       <header class="panel-head">
         <div>
           <h3>Headline — locked audits, median across seeds</h3>
@@ -250,6 +250,48 @@ PITCH = """
   makes a published number re-verifiable from the artifact it came from. For a security
   audience, that ledger is worth more than a smooth curve.</p>
 </section>
+"""
+
+HERO = """
+<section class="hero" id="overview">
+  <h2>One system. Both sides of the fight.</h2>
+  <p class="hero-sub">Identify the fraud that does not exist yet. Generate it with enforced
+  fidelity. Defend against it with a detector that never sees a future it could not observe.</p>
+  <div class="pillars">
+    <div class="pillar">
+      <div class="pillar-n">01</div>
+      <h3>Identify</h3>
+      <p>Thirteen families mapped across Indian payment rails — deepfakes, synthetic
+      onboarding, voice-clone vishing, mule graphs, bust-outs, agentic manipulation. Five are
+      executable; the rest are specified, never faked.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-n">02</div>
+      <h3>Generate</h3>
+      <p>Parameterised attackers emit <em>raw events</em> into a calibrated Indian-payment
+      world. Velocity, fan-in, escalation — every signal the detector sees is derived by the
+      same pipeline that runs on real data. Enforced by test.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-n">03</div>
+      <h3>Defend</h3>
+      <p>A rail-scoped detector retrains every generation while the attacker mutates on what
+      slipped through — measured on batches neither trained on, scored once against a sealed
+      audit. Honesty is a protocol, not a promise.</p>
+    </div>
+  </div>
+</section>
+"""
+
+NAV = """
+<nav class="jumpnav">
+  <a href="#replay">Replay</a>
+  <a href="#headline">Results</a>
+  <a href="#taxonomy">Taxonomy</a>
+  <a href="#lofo">Zero-shot</a>
+  <a href="#lane-a">Lane A</a>
+  <a href="#ledger">Ledger</a>
+</nav>
 """
 
 
@@ -361,7 +403,7 @@ def lane_a_panel(la):
         ],
     )
     return f"""
-    <section class="panel">
+    <section class="panel" id="lane-a">
       <header class="panel-head">
         <div>
           <h3>Lane A · synthetic-to-real utility on real card data</h3>
@@ -407,7 +449,7 @@ def lofo_panel(lofo):
             rows.append((fam, "none", "not defined — no within-rail sibling", "", ""))
     tbl = table(["held out", "trained on", "AUPRC", "recall @frozen cut", "logit baseline AUPRC"], rows)
     return f"""
-    <section class="panel">
+    <section class="panel" id="lofo">
       <h3>Zero-shot (LOFO) — the detector frozen, the family unseen</h3>
       <p class="sub">Trained only on sibling families of the same rail; threshold frozen on
       sibling-only calibration; one evaluation on the held-out family. F10 has no agentic-rail
@@ -439,7 +481,7 @@ def taxonomy_panel():
         TAXONOMY_ROWS,
     )
     return f"""
-    <section class="panel">
+    <section class="panel" id="taxonomy">
       <h3>Identify — thirteen families mapped, five executable</h3>
       <p class="sub">Executable families enter the adaptive loop and receive quantitative
       evaluation. Mapped families are specified in docs/ATTACK_TAXONOMY.md with mechanism,
@@ -493,7 +535,7 @@ def ledger_panel():
         for c, s, t, w in LEDGER
     )
     return f"""
-    <section class="panel">
+    <section class="panel" id="ledger">
       <h3>Honesty ledger</h3>
       <p class="sub">Claims this system made, then withdrew, with the mechanism that caused each.
          Kept on the dashboard rather than buried in a repository file.</p>
@@ -537,8 +579,23 @@ LOOP_SVG = """
 # replay explorer (client-side, from embedded artifacts)
 # --------------------------------------------------------------------------
 
+def _r(v, nd):
+    """Round a float for embedding; None and non-numeric pass through."""
+    if isinstance(v, (int, float)) and v == v:
+        return round(v, nd)
+    return v
+
+
 def replay_data(fams):
-    """Compact per-family JSON: seeds and their generation series."""
+    """Compact per-family JSON: seeds and their generation series.
+
+    Size discipline: this JSON is embedded in the page, and the un-rounded
+    first cut ran the page to ~640 KB. Two reductions: the `audit` metrics
+    block is never read by the explorer (the report panels render it server-
+    side) and is dropped, and every float is rounded to its display
+    precision — 4 dp for rates, 2 dp for money and parameters. Nothing the
+    explorer plots loses information.
+    """
     payload = {}
     for fam, runs in fams.items():
         series = []
@@ -551,13 +608,15 @@ def replay_data(fams):
                     "seed": r["seed"],
                     "gens": [
                         {
-                            "recall_pre": g.get("recall_pre"),
-                            "recall_post": g.get("recall_post"),
-                            "fpr_post": g.get("fpr_post"),
-                            "evasion": g.get("episode_evasion"),
-                            "yield": g.get("attacker_yield"),
-                            "prevalence": g.get("prevalence"),
-                            "best_params": g.get("best_params") or {},
+                            "recall_pre": _r(g.get("recall_pre"), 4),
+                            "recall_post": _r(g.get("recall_post"), 4),
+                            "fpr_post": _r(g.get("fpr_post"), 6),
+                            "evasion": _r(g.get("episode_evasion"), 4),
+                            "yield": _r(g.get("attacker_yield"), 2),
+                            "prevalence": _r(g.get("prevalence"), 6),
+                            "best_params": {
+                                k: _r(v, 2) for k, v in (g.get("best_params") or {}).items()
+                            },
                         }
                         for g in gens
                     ],
@@ -569,11 +628,6 @@ def replay_data(fams):
                 "name": FAMILY_NAMES.get(fam, fam),
                 "n_gen": len(series[0]["gens"]),
                 "series": series,
-                "audit": {
-                    r["seed"]: r["score"].get("metrics", {})
-                    for r in runs
-                    if r.get("score", {}).get("metrics")
-                },
             }
     return payload
 
@@ -597,7 +651,11 @@ function famTabs(){
   for(const f of Object.keys(R)){
     const b=document.createElement('button');
     b.className='ftab'+(f===curFam?' sel':'');
-    b.textContent=f;b.onclick=()=>{curFam=f;curSeed='agg';curGen=0;seedSel();draw();};
+    const lab=document.createElement('span');lab.textContent=f;
+    const cnt=document.createElement('span');cnt.className='cnt';
+    cnt.textContent='\u00d7'+(R[f].series?R[f].series.length:0);
+    b.appendChild(lab);b.appendChild(cnt);
+    b.onclick=()=>{curFam=f;curSeed='agg';curGen=0;seedSel();draw();};
     box.appendChild(b);
   }
 }
@@ -739,6 +797,7 @@ function toggleTheme(){
 def replay_panel():
     return """
     <section class="panel" id="replay">
+      <div id="fam-tabs"></div>
       <header class="panel-head">
         <div>
           <h3>The loop in action <span class="rep-tag">REPLAY</span></h3>
@@ -755,6 +814,11 @@ def replay_panel():
       <div class="rep-body">
         <svg id="replay-chart" viewBox="0 0 560 320" role="img" class="chart"></svg>
         <div id="rep-stats" class="rep-stats"></div>
+      </div>
+      <div id="replay-legend">
+        <span><span class="sw sw-pre"></span>recall before retraining</span>
+        <span><span class="sw sw-post"></span>recall after retraining</span>
+        <span><span class="sw sw-fpr"></span>false positives on legitimate traffic</span>
       </div>
       <div id="rep-params" class="params"></div>
       <details><summary>What this shows, and what it does not show</summary>
@@ -886,12 +950,39 @@ background:var(--bg);padding:4px 10px;border-radius:999px;color:var(--ink2)}
 #theme-btn{position:absolute;top:14px;right:20px;font:inherit;font-size:.8rem;
 padding:4px 12px;border:1px solid var(--line);background:var(--surface);
 color:var(--ink2);border-radius:999px;cursor:pointer}
+.hero{background:linear-gradient(135deg,var(--surface),var(--bg));
+border:1px solid var(--line);border-radius:10px;padding:30px 30px 26px;margin:0 0 18px}
+.hero h2{margin:0 0 8px;font-size:1.5rem;letter-spacing:-.01em}
+.hero-sub{color:var(--ink2);max-width:70ch;margin:0 0 22px}
+.pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media (max-width:760px){.pillars{grid-template-columns:1fr}}
+.pillar{border:1px solid var(--line);border-radius:8px;padding:16px 18px;background:var(--surface)}
+.pillar-n{font-size:.72rem;letter-spacing:.14em;color:var(--muted);margin-bottom:4px}
+.pillar h3{margin:0 0 6px}
+.pillar p{margin:0;color:var(--ink2);font-size:.88rem}
+.jumpnav{position:sticky;top:0;z-index:10;display:flex;gap:6px;flex-wrap:wrap;
+padding:8px 0;margin:0 0 18px;background:color-mix(in srgb,var(--bg) 88%,transparent);
+backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+.jumpnav a{font-size:.82rem;text-decoration:none;color:var(--ink2);
+border:1px solid var(--line);border-radius:999px;padding:3px 12px;background:var(--surface)}
+.jumpnav a:hover{color:var(--pre);border-color:var(--pre)}
+.ftab .cnt{opacity:.65;font-size:.75em;margin-left:4px}
+#replay-legend{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 0;font-size:.8rem;color:var(--ink2)}
+#replay-legend .sw{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.sw-pre{background:var(--pre)}.sw-post{background:var(--post)}.sw-fpr{background:var(--fpr)}
+footer a{color:var(--pre);text-decoration:none}
+footer a:hover{text-decoration:underline}
 footer{color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);
 padding-top:18px;margin-top:26px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 """
 
     rdata = json.dumps(replay_data(fams), default=float, ensure_ascii=False)
+    # quote=False is load-bearing: script elements do NOT decode HTML character
+    # references, so escaping the JSON's double quotes to &quot; hands the
+    # browser invalid JSON and JSON.parse dies with the whole explorer. The
+    # remaining escaping (& < >) keeps </script> from ever closing the tag.
+    rdata_esc = html.escape(rdata, quote=False)
     doc = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -906,6 +997,10 @@ padding-top:18px;margin-top:26px}
   detector retrains — with the improvement measured on batches neither of them trained on.</p>
   <div class="banner">{banner}</div>
 </header>
+
+{HERO}
+
+{NAV}
 
 <section class="panel">
   <h3>The loop</h3>
@@ -927,11 +1022,17 @@ padding-top:18px;margin-top:26px}
 {lane_a_panel(la)}
 {ledger_panel()}
 
-<footer>Every number is read from a seeded run artifact in <code>runs/</code>. Panels with no
+<footer>
+<p>Every number is read from a seeded run artifact in <code>runs/</code>. Panels with no
 artifact say so rather than showing a placeholder. Replay is labelled REPLAY per
-docs/EXPERIMENT_CONTRACT.md §6.</footer>
+docs/EXPERIMENT_CONTRACT.md §6.</p>
+<p><a href="https://github.com/N-45div/Chakra">repository</a> ·
+<a href="https://github.com/N-45div/Chakra/blob/main/docs/EXPERIMENT_CONTRACT.md">experiment contract</a> ·
+<a href="https://github.com/N-45div/Chakra/blob/main/docs/ATTACK_TAXONOMY.md">attack taxonomy</a> ·
+<a href="https://github.com/N-45div/Chakra/blob/main/docs/FINDINGS.md">findings ledger</a></p>
+</footer>
 </div>
-<script type="application/json" id="replay-data">{html.escape(rdata)}</script>
+<script type="application/json" id="replay-data">{rdata_esc}</script>
 <script>{REPLAY_JS}</script>
 </body></html>"""
 
