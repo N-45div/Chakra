@@ -293,6 +293,14 @@ class F8BustOut(AttackFamily):
                         "counterparty_id": auth.payload["counterparty_id"],
                         "amount_inr": auth.payload["amount_inr"],
                         "device_id": device_id,
+                        # `phase` MUST survive onto the authorised event.
+                        # episode_value_inr separates nurture spend from burst
+                        # extraction by reading it, and the loop collects
+                        # payloads from AUTHORISED events - not from the
+                        # request. Enumerating the payload by hand dropped it,
+                        # so the filter matched nothing and the family's gain
+                        # was identically zero while real money moved.
+                        "phase": auth.payload.get("phase"),
                         "linked_txn_id": auth.event_id,
                         "linked_initiation_id": init.event_id,
                         "decline_reason": None,

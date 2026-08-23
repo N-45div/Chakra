@@ -302,6 +302,80 @@ generations.
 
 ---
 
+## F-008 · F8 valued its own attack at zero (fixed)
+
+Found by an adversarial review workflow, independently reproduced, and fixed.
+
+`F8.episode_value_inr` separates nurture spend from burst extraction by reading
+`payload["phase"]`. The loop collects payloads from **TXN_AUTHORISED** events —
+and F8's authorised payload was hand-enumerated and dropped `phase`. The burst
+filter therefore matched nothing on every parameter vector.
+
+Measured on the family's own emitted events, through the exact call the
+orchestrator makes:
+
+```
+authorised events   : 38   (0 of 38 carried `phase`)
+rupees moved        : ₹17,51,450.52
+episode_value_inr() : ₹0.00
+```
+
+With value identically zero and `infrastructure_cost` also zero, F8's fitness
+reduced to *minus its own spend* — maximised by attacking as small and as
+seldom as possible, the exact opposite of a bust-out. **Every F8 loop
+generation run before this fix optimised backwards.**
+
+The test that certified the valuation built its payloads by hand:
+
+```python
+payloads = [{"phase": "burst"}, {"phase": "nurture"}, {"phase": "burst"}]
+```
+
+so it passed green on a code path the loop can never reach — the vacuous-test
+class again, this time *enabling* an accounting error rather than merely
+failing to catch one.
+
+**Fixed:** `phase` is carried onto the authorised event, and a new test
+exercises the real path — emit, collect authorised payloads exactly as
+`_episode_outcomes` does, and require a positive valuation. Post-fix the same
+episode values at ₹13,67,280.68.
+
+**Consequence:** F8's ten completed seeds have meaningless loop dynamics and
+must be re-run. Its zero-shot LOFO number is unaffected — that path never calls
+`episode_value_inr`.
+
+---
+
+## F-009 · F10's genuine agent population has no churn (open)
+
+Confirmed by review, severity reduced from critical to high on verification.
+
+Every genuine consumer is bound 1:1 to one agent for the whole world: the agent
+is cached on the consumer and never rotated or shared. So
+`agent_distinct_principals_24h` is a **point mass at 1.0** on every genuine row
+— zero variance — and the rule `> 1` is a fraud detector with *exactly* zero
+false positives, for reasons that have nothing to do with fraud.
+
+This is the same shape as the instrument-churn defect: the genuine population
+lacks a behaviour the attack necessarily exhibits. F-006 records that F5 was
+only a real trade because genuine merchants had **higher** fan-in than the mule
+handle. Here there is no genuine cover at all — no household, family or
+comparison-shopping agent traffic.
+
+The verifier established two limits on the claim. The declared trade *does*
+exist and moves the metric in the declared direction, but it is a **cliff
+rather than a gradient**: any value above 1 is instantly fatal, so the only
+playable setting is exactly 1 and there is nothing for the loop to search.
+And it is **not load-bearing** — ablating all three agent-identity features
+still leaves recall 1.000 and AUPRC 0.897–0.924, because separation is carried
+by payee and instrument novelty.
+
+**Status: open.** F10's headline numbers stand; the claim that agent fan-out
+represents a learnable rotation-economics trade does not. Fix is to give the
+genuine population agent sharing and rotation.
+
+---
+
 ## Defects found by guardrails rather than by inspection
 
 Recorded because each was invisible in output and would have quietly

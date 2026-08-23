@@ -68,6 +68,36 @@ def test_episode_value_counts_only_burst_at_conversion_discount():
     assert FAM.episode_value_inr(amounts, payloads) == expected
 
 
+def test_episode_value_is_nonzero_on_the_family_s_OWN_emitted_events():
+    """The valuation must work on what the family actually emits.
+
+    The hand-built test above passes on a code path the loop can never reach:
+    it constructs payloads carrying `phase`, while the loop collects payloads
+    from TXN_AUTHORISED events. Those had `phase` dropped by a hand-enumerated
+    payload, so the burst filter matched nothing and F8's gain was identically
+    zero while lakhs of rupees moved — fitness became minus its own spend,
+    maximised by attacking as little as possible, the exact opposite of a
+    bust-out.
+
+    This test exercises the real path: emit, collect AUTHORISED payloads
+    exactly as orchestrator._episode_outcomes does, and require a positive
+    valuation.
+    """
+    ev = _emit()
+    auth = [e for e in ev if e.event_type is EventType.TXN_AUTHORISED]
+    assert auth, "family emitted no authorised events"
+    amounts = [float(e.payload.get("amount_inr", 0.0)) for e in auth]
+    payloads = [dict(e.payload) for e in auth]
+
+    assert any(p.get("phase") == "burst" for p in payloads), (
+        "no authorised event carries phase='burst' — the loop cannot value this family"
+    )
+    assert sum(amounts) > 0, "no money moved"
+    assert FAM.episode_value_inr(amounts, payloads) > 0.0, (
+        "F8 valued its own burst extraction at zero"
+    )
+
+
 def test_episode_value_without_payloads_refuses_to_guess():
     try:
         FAM.episode_value_inr([100.0], None)

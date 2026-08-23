@@ -1,6 +1,6 @@
 # Chakra — handover
 
-**Repo:** https://github.com/N-45div/Chakra · **HEAD:** `89619ce` · 75 tests passing
+**Repo:** https://github.com/N-45div/Chakra · 76 tests passing
 **Deadline:** 31 Aug 2026, 11:59 PM IST · **Submitted via:** Kaggle → Writeups tab
 
 ---
@@ -92,7 +92,65 @@ podiums, that isn't good enough.
 
 ---
 
-## 6. Known issues worth your judgement
+## 6. CRITICAL — F8's ten seeds must be re-run
+
+An adversarial review finished after I wrote this file and found a defect I then
+reproduced and fixed.
+
+`F8.episode_value_inr` reads `payload["phase"]` to separate nurture spend from
+burst extraction, but F8's **authorised** payload dropped that key — and the loop
+collects payloads from authorised events. Measured on the family's own output:
+
+```
+authorised events   : 38   (0 of 38 carried `phase`)
+rupees moved        : Rs 17,51,450.52
+episode_value_inr() : Rs 0.00        <-- before fix
+episode_value_inr() : Rs 13,67,280.68 <-- after fix
+```
+
+With value zero and infrastructure cost zero, F8's fitness was *minus its own
+spend* — maximised by attacking as little as possible, the exact opposite of a
+bust-out. **Every F8 generation run before the fix optimised backwards.**
+
+The test that certified the valuation hand-built its payloads, so it passed green
+on a code path the loop can never reach.
+
+**Fixed and pushed** (`phase` now propagates; a new test exercises the real emit
+path). But F8's ten completed seeds are invalid and need re-running:
+
+```bash
+cd C:/Users/DivijN/chakra
+rm -rf runs/F8_seed*
+./.venv/Scripts/python.exe scripts/run_registered.py --families F8 --workers 4
+```
+
+F8's **zero-shot LOFO number is unaffected** — that path never calls
+`episode_value_inr`.
+
+---
+
+## 7. F10 — agent fan-out is not a real trade (open, not fixed)
+
+Every genuine consumer is bound 1:1 to one agent forever, so
+`agent_distinct_principals_24h` is a point mass at 1.0 on all genuine rows. The
+rule `> 1` catches ~75% of fraud at **exactly zero** false positives — for
+structural reasons, not fraud reasons.
+
+The verifier established two limits: it is a **cliff, not a gradient** (any value
+above 1 is instantly fatal, so the only playable setting is 1 and the loop has
+nothing to search), and it is **not load-bearing** — ablating all three
+agent-identity features still leaves recall 1.000 and AUPRC 0.897–0.924, because
+separation is carried by payee and instrument novelty.
+
+**So F10's headline numbers stand.** What does not stand is any claim that agent
+fan-out represents a learnable rotation-economics trade. Either fix the genuine
+population to share and rotate agents, or drop that claim from the deck.
+
+Both are recorded as F-008 and F-009 in `docs/FINDINGS.md`.
+
+---
+
+## 8. Known issues worth your judgement
 
 **Small-n families in the efficacy table.** F10 (n=2) and F11 (n=3) sit in the same table
 as F5 (n=20). This project retracted finding F-002 precisely for reading one seed as a
@@ -110,9 +168,9 @@ copula produces rows trivially distinguishable from real ones, and TSTR AUC is 0
 the copula is the obvious next step. If you'd rather not, the current honest framing is
 defensible — but expect a judge to ask.
 
-**A review workflow was mid-flight when I stopped.** Four lenses over the F8/F10/LOFO/
-dashboard work, with skeptics verifying each finding. It never reported. Nothing from it
-is incorporated. Re-run if you want that coverage.
+**The review workflow completed after I stopped.** Its two confirmed findings are §6 and
+§7 above — one fixed, one open. 48 agents, four lenses, each finding independently verified
+by a skeptic before being accepted.
 
 ---
 
