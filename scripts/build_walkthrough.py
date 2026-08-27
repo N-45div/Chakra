@@ -468,7 +468,7 @@ def _appendix(doc: Document, data: dict) -> None:
         "scripts/build_dashboard.py; output dashboard/index.html is self-contained."
     )
     doc.add_paragraph(
-        "Tests: pytest -q — 75 checks including the no-feature-injection guarantee, "
+        "Tests: pytest -q — 78 checks including the no-feature-injection guarantee, "
         "truth isolation, stream separation, availability discipline and determinism."
     )
     n = sum(len(v) for v in data.values())
